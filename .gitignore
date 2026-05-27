@@ -1,0 +1,26 @@
+# Backups
+Glass Terminal - Standalone.backup.html
+*.backup.html
+*.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Local Netlify CLI
+.netlify/
+
+# Logs
+*.log
+npm-debug.log*

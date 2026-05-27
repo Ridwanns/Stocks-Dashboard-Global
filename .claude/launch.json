@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["D:\\claude claude an\\bla bla bla\\Dahboard stock\\serve.py", "3000"],
+      "port": 3000
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\pdftotext.exe\" -f 1 -l 3 -layout \"D:\\\\claude claude an\\\\New dashboard\\\\Financial Statements\\\\NVDA\\\\4e9abe7b-fdc7-4cd2-8487-dc3a99f30e98.pdf\" - 2>&1)"
+    ]
+  }
+}
