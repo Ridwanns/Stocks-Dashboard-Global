@@ -1333,10 +1333,12 @@ function RevenueGrowthChart({data,accent,mode}){
   const W=820, H=210, padL=40, padR=12, padB=44, padT=18;
   const innerW=W-padL-padR, innerH=H-padT-padB;
   const n=series.length;
-  // Wider bars for yearly (fewer points), tighter for quarterly
+  // Side-by-side Revenue + Net Income bars within each group.
   const groupW=innerW/n;
-  const bw=Math.min(groupW*0.62, 70);
-  const niBwRatio=0.30; // NI is a slim inset bar
+  const pairW=Math.min(groupW*0.78, 92);
+  const revW=pairW*0.58;
+  const niW=pairW*0.32;
+  const gap=pairW*0.10;
   const yGrids=[0,0.25,0.5,0.75,1];
   const uniq=Math.random().toString(36).slice(2,7);
   const revGradId='revGrad-'+uniq, niGradId='niGrad-'+uniq, glowId='glow-'+uniq;
@@ -1382,6 +1384,11 @@ function RevenueGrowthChart({data,accent,mode}){
         const nih=d.ni?(d.ni/maxR)*innerH:0;
         const isLast=i===n-1;
         const baseY=padT+innerH;
+        // Side-by-side layout: rev bar left-of-center, ni bar right-of-center
+        const revX=cx-pairW/2;
+        const niX=cx+pairW/2-niW;
+        const revCx=revX+revW/2;
+        const niCx=niX+niW/2;
         // YoY/QoQ growth vs previous bar
         const prev=i>0?series[i-1]:null;
         const grow=prev&&prev.rev?((d.rev/prev.rev-1)*100):null;
@@ -1391,38 +1398,45 @@ function RevenueGrowthChart({data,accent,mode}){
         return(
           <g key={i}>
             {/* Revenue bar — main, with rounded top, glow on last */}
-            <rect x={cx-bw/2} y={baseY-rh} width={bw} height={rh}
+            <rect x={revX} y={baseY-rh} width={revW} height={rh}
               rx={3} ry={3}
               fill={`url(#${revGradId})`}
               filter={isLast?`url(#${glowId})`:undefined}
               stroke={isLast?ac:'rgba(255,255,255,0.04)'} strokeWidth={isLast?1.5:1}
               opacity={d.partial?0.72:1}/>
-            {/* Net Income inset bar */}
+            {/* Net Income — side-by-side bar (not inset) */}
             {d.ni>0&&<rect
-              x={cx-bw*niBwRatio/2}
+              x={niX}
               y={baseY-nih}
-              width={bw*niBwRatio}
+              width={niW}
               height={nih}
               rx={2} ry={2}
               fill={`url(#${niGradId})`}
-              stroke="rgba(52,211,153,.6)" strokeWidth={0.5}/>}
+              stroke="rgba(52,211,153,.55)" strokeWidth={0.6}
+              opacity={d.partial?0.72:1}/>}
 
             {/* Rev value label */}
-            <text x={cx} y={baseY-rh-22} textAnchor="middle"
+            <text x={revCx} y={baseY-rh-22} textAnchor="middle"
               fontSize={11} fontFamily={GT.fontMono}
               fill={isLast?ac:'#eef0ff'} fontWeight={700} letterSpacing="0.3"
               style={{filter:isLast?`drop-shadow(0 0 6px ${ac})`:'none'}}>
               {d.rev>=1000?(d.rev/1000).toFixed(1)+'B':d.rev.toFixed(1)}
             </text>
             {/* Growth badge */}
-            {grow!=null&&<text x={cx} y={baseY-rh-8} textAnchor="middle"
+            {grow!=null&&<text x={revCx} y={baseY-rh-8} textAnchor="middle"
               fontSize={8.5} fontFamily={GT.fontMono} fill={growColor}
               fontWeight={700} letterSpacing="0.5"
               style={{filter:`drop-shadow(0 0 4px ${growColor}88)`}}>
               {grow>=0?'▲ +':'▼ '}{Math.abs(grow).toFixed(0)}%
             </text>}
+            {/* NI value label — only when bar tall enough to show */}
+            {d.ni>0&&nih>14&&<text x={niCx} y={baseY-nih-6} textAnchor="middle"
+              fontSize={8.5} fontFamily={GT.fontMono} fill="#34d399"
+              fontWeight={700} letterSpacing="0.3">
+              {d.ni>=1000?(d.ni/1000).toFixed(1)+'B':d.ni.toFixed(1)}
+            </text>}
 
-            {/* Period label */}
+            {/* Period label — centered under the pair */}
             <text x={cx} y={baseY+18} textAnchor="middle"
               fontSize={9.5} fontFamily={GT.fontMono}
               fill={isLast?'#eef0ff':'rgba(163,172,209,.85)'}
@@ -1433,7 +1447,7 @@ function RevenueGrowthChart({data,accent,mode}){
               letterSpacing="1">NM {margin.toFixed(0)}%</text>}
 
             {/* Partial year indicator dot */}
-            {d.partial&&<circle cx={cx+bw/2-3} cy={baseY-rh+5} r="2.5"
+            {d.partial&&<circle cx={revX+revW-3} cy={baseY-rh+5} r="2.5"
               fill="#fbbf24" stroke="#0a0e1c" strokeWidth="1"/>}
           </g>
         );
@@ -1974,7 +1988,7 @@ function DDTakeaways({items}){
       {items.map((it,i)=>(
         <div key={i} className="gt-dd-bullet">
           <span className="gt-dd-bullet-marker">▸</span>
-          <DDRichText text={it}/>
+          <span className="gt-dd-bullet-body"><DDRichText text={it}/></span>
         </div>
       ))}
     </div>
