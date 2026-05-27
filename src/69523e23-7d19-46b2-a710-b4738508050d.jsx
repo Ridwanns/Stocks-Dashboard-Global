@@ -4,7 +4,11 @@
 // (canvas, accentHex) once the hero canvas mounts.
 // ════════════════════════════════════════════════════════════════════
 
-import * as THREE from 'three';
+const THREE = window.THREE;
+if (!THREE) {
+  window.startGalaxy = () => null;
+  console.warn('[Galaxy] Three.js not loaded');
+}
 
 const STAR_COUNT = 4500;
 const CORE_COUNT = 1200;
