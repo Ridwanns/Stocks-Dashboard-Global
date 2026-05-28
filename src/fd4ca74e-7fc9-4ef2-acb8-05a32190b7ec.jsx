@@ -1321,6 +1321,21 @@ function aggregateToYearly(quarterly){
   return arr;
 }
 
+// ── Build a multi-year {q,rev,ni} series straight from the annual income
+// statement (Revenue + Net income rows). Lets the trajectory chart show the
+// full FY2020→latest history instead of only the few quarters we hold.
+function annualToSeries(annual){
+  if(!annual||!annual.periods||!annual.income) return [];
+  const revRow=annual.income.find(r=>/^(revenue|net revenue)$/i.test(r.label.trim()));
+  const niRow =annual.income.find(r=>/^net income/i.test(r.label.trim()));
+  if(!revRow) return [];
+  return annual.periods.map((p,i)=>({
+    q: p.replace(/^FY20/,'FY').replace(/^FY/,'FY'), // 'FY2024' → 'FY24'
+    rev: typeof revRow.v[i]==='number'?revRow.v[i]:0,
+    ni:  niRow&&typeof niRow.v[i]==='number'?niRow.v[i]:0,
+  }));
+}
+
 function RevenueGrowthChart({data,accent,mode}){
   const {palette}=useTheme();
   const ac=accent||palette.a;
@@ -1371,7 +1386,7 @@ function RevenueGrowthChart({data,accent,mode}){
               stroke="rgba(255,255,255,0.05)" strokeDasharray="2,4"/>
             <text x={padL-8} y={y+3} textAnchor="end" fontSize={8.5}
               fontFamily={GT.fontMono} fill="rgba(163,172,209,.7)" letterSpacing="0.6">
-              {v>=1000?(v/1000).toFixed(1)+'k':v>=10?v.toFixed(0):v.toFixed(1)}
+              {v>=1000?(v/1000).toFixed(0)+'B':v>=10?v.toFixed(0):v.toFixed(1)}
             </text>
           </g>
         );
@@ -1492,10 +1507,16 @@ function RevenueGrowthLegend({accent}){
 }
 
 // Wrapper with Quarterly / Yearly toggle UI
-function RevenueGrowthChartToggle({quarterly,accent}){
+function RevenueGrowthChartToggle({quarterly,annual,accent}){
   const {palette}=useTheme();
   const [mode,setMode]=dsUseState('quarterly');
   const ac=accent||palette.a;
+  // Yearly view prefers the real multi-year annual income statement (FY2020→
+  // latest); falls back to aggregating the held quarters when annual is absent.
+  const annualSeries=annual?annualToSeries(annual):null;
+  const useAnnual=mode==='yearly'&&annualSeries&&annualSeries.length>2;
+  const chartData=useAnnual?annualSeries:quarterly;
+  const chartMode=useAnnual?'raw':mode;
   const btn=(label,m)=>(
     <button key={m} onClick={()=>setMode(m)} style={{
       padding:'6px 14px',
@@ -1519,8 +1540,14 @@ function RevenueGrowthChartToggle({quarterly,accent}){
           {btn('Yearly','yearly')}
         </div>
       </div>
-      <RevenueGrowthChart data={quarterly} accent={ac} mode={mode}/>
-      {mode==='yearly'&&<div style={{
+      <RevenueGrowthChart data={chartData} accent={ac} mode={chartMode}/>
+      {mode==='yearly'&&useAnnual&&<div style={{
+        marginTop:8,fontFamily:GT.fontMono,fontSize:9.5,
+        color:'rgba(163,172,209,.7)',letterSpacing:0.6,
+      }}>
+        Full-year revenue (bars) &amp; net income (inset) from audited annual filings.
+      </div>}
+      {mode==='yearly'&&!useAnnual&&<div style={{
         marginTop:8,fontFamily:GT.fontMono,fontSize:9.5,
         color:'rgba(163,172,209,.7)',letterSpacing:0.6,
         display:'flex',alignItems:'center',gap:7,
@@ -1809,7 +1836,7 @@ function TabFinancials({t}){
         <>
           <KpiStrip t={t}/>
           <Panel kicker="Revenue & earnings trajectory" title={`${t.sym} · revenue`} accent={palette.a}>
-            <RevenueGrowthChartToggle quarterly={t.quarterly} accent={palette.a}/>
+            <RevenueGrowthChartToggle quarterly={t.quarterly} annual={dd&&dd.annual} accent={palette.a}/>
           </Panel>
           <Panel kicker="Competitive moat" title="What we underwrite" accent="#f472b6">
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
@@ -1897,7 +1924,7 @@ function TabFinancials({t}){
       )}
       {section==='balance'&&dd&&(()=>{
         const bRows=(mode==='quarterly'&&view.balance?.length)?view.balance:dd.annual.balance;
-        const bPeriods=(mode==='quarterly'&&view.balance?.length)?(view.periods||dd.annual.periods):dd.annual.periods;
+        const bPeriods=(mode==='quarterly'&&view.balance?.length)?(view.periods||dd.annual.periods):(dd.annual.balancePeriods||dd.annual.periods);
         const bMode=(mode==='quarterly'&&view.balance?.length)?'Quarterly':'Annual';
         return(
           <Panel kicker={`Balance Sheet · ${t.sym}`} title={bMode}
@@ -1909,7 +1936,7 @@ function TabFinancials({t}){
       })()}
       {section==='cashflow'&&dd&&(()=>{
         const cfRows=(mode==='quarterly'&&view.cashflow?.length)?view.cashflow:dd.annual.cashflow;
-        const cfPeriods=(mode==='quarterly'&&view.cashflow?.length)?(view.periods||dd.annual.periods):dd.annual.periods;
+        const cfPeriods=(mode==='quarterly'&&view.cashflow?.length)?(view.periods||dd.annual.periods):(dd.annual.cashflowPeriods||dd.annual.periods);
         const cfMode=(mode==='quarterly'&&view.cashflow?.length)?'Quarterly':'Annual';
         return(
           <Panel kicker={`Cash Flow · ${t.sym}`} title={cfMode}
