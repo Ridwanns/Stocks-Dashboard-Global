@@ -1413,7 +1413,8 @@ function RevenueGrowthChart({data,accent,mode}){
         return(
           <g key={i}>
             {/* Revenue bar — main, with rounded top, glow on last */}
-            <rect x={revX} y={baseY-rh} width={revW} height={rh}
+            <rect className="gt-grow-bar" style={{animationDelay:`${i*70}ms`}}
+              x={revX} y={baseY-rh} width={revW} height={rh}
               rx={3} ry={3}
               fill={`url(#${revGradId})`}
               filter={isLast?`url(#${glowId})`:undefined}
@@ -1421,6 +1422,7 @@ function RevenueGrowthChart({data,accent,mode}){
               opacity={d.partial?0.72:1}/>
             {/* Net Income — side-by-side bar (not inset) */}
             {d.ni>0&&<rect
+              className="gt-grow-bar" style={{animationDelay:`${i*70+110}ms`}}
               x={niX}
               y={baseY-nih}
               width={niW}
@@ -1604,7 +1606,8 @@ function FinBarChart({rows,periods,accent,height=160}){
             const y=H-32-bh;
             return(
               <g key={ri}>
-                <rect x={x} y={y} width={barW*0.8} height={bh}
+                <rect className="gt-grow-bar" style={{animationDelay:`${pi*60+ri*30}ms`}}
+                  x={x} y={y} width={barW*0.8} height={bh}
                   fill={`url(#fg${ri})`} rx={2}/>
                 {bh>18&&<text x={x+barW*0.4} y={y+10} textAnchor="middle"
                   fontSize={7} fontFamily={GT.fontMono} fill="rgba(255,255,255,.7)" fontWeight={700}>
@@ -1661,7 +1664,8 @@ function CashFlowChart({rows,periods,accent,height=140}){
             const y=isPos?half+4-bh:half+4;
             return(
               <g key={ri}>
-                <rect x={x} y={y} width={barW*0.8} height={bh}
+                <rect className="gt-grow-bar" style={{animationDelay:`${pi*60+ri*30}ms`}}
+                  x={x} y={y} width={barW*0.8} height={bh}
                   fill={cfColors[ri]} rx={2} opacity={0.8}/>
                 {bh>14&&<text x={x+barW*0.4} y={isPos?y+10:y+bh-4} textAnchor="middle"
                   fontSize={7} fontFamily={GT.fontMono} fill="rgba(255,255,255,.75)" fontWeight={700}>
@@ -2711,10 +2715,10 @@ function Dashboard(){
             {/* 70/30 split — left tighter, right (Analyst Consensus & Scenarios) gets breathing room */}
             <div className="gt-dash-grid" style={{display:'grid',gridTemplateColumns:'minmax(0,7fr) minmax(360px, 3fr)',gap:0}}>
               <div className="gt-dash-main" style={{padding:'22px 26px',borderRight:`1px dashed ${palette.edge}`,minWidth:0}}>
-                <div key={tab+'-'+sym} className="gt-fade-up">{tabContent}</div>
+                <div key={tab+'-'+sym} className="gt-tab-stagger">{tabContent}</div>
               </div>
               <div className="gt-dash-rail" style={{padding:'22px 22px',borderColor:palette.edge,minWidth:0}}>
-                <div key={'rail-'+sym} className="gt-fade-up"><DashRightRail t={t}/></div>
+                <div key={'rail-'+sym} className="gt-tab-stagger"><DashRightRail t={t}/></div>
               </div>
             </div>
           </div>

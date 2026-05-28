@@ -436,6 +436,30 @@ const GT_ANIM_CSS = `
 .gt-stagger > *:nth-child(7) { animation-delay: 330ms; }
 .gt-stagger > *:nth-child(8) { animation-delay: 385ms; }
 
+/* ──────── Tab content reveal ────────
+   Each tab/section is wrapped in a keyed container, so switching tabs
+   remounts it and replays these. We stagger the panels (grandchildren of
+   the wrapper: .wrapper > tabRootDiv > panel*) so they cascade up on press. */
+.gt-tab-stagger > * > * { animation: gtFadeUp .5s cubic-bezier(.22,.7,.3,1) both; }
+.gt-tab-stagger > * > *:nth-child(1)  { animation-delay: 40ms; }
+.gt-tab-stagger > * > *:nth-child(2)  { animation-delay: 100ms; }
+.gt-tab-stagger > * > *:nth-child(3)  { animation-delay: 160ms; }
+.gt-tab-stagger > * > *:nth-child(4)  { animation-delay: 220ms; }
+.gt-tab-stagger > * > *:nth-child(5)  { animation-delay: 280ms; }
+.gt-tab-stagger > * > *:nth-child(6)  { animation-delay: 340ms; }
+.gt-tab-stagger > * > *:nth-child(7)  { animation-delay: 400ms; }
+.gt-tab-stagger > * > *:nth-child(8)  { animation-delay: 460ms; }
+.gt-tab-stagger > * > *:nth-child(9)  { animation-delay: 520ms; }
+.gt-tab-stagger > * > *:nth-child(n+10) { animation-delay: 580ms; }
+
+/* SVG bar grow-in — bars scale up from their own baseline. transform-box
+   keeps the origin within each rect's own box despite the chart's viewBox. */
+.gt-grow-bar { transform-box: fill-box; transform-origin: bottom; animation: gtBarGrow .6s cubic-bezier(.34,1.3,.42,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gt-tab-stagger > * > *, .gt-grow-bar, .gt-fade-up, .gt-stagger > * { animation: none !important; opacity: 1 !important; }
+}
+
 /* SVG draw helpers */
 .gt-draw     { stroke-dasharray: var(--gt-dash, 2000); animation: gtDrawLine 1.1s cubic-bezier(.2,.7,.3,1) both; }
 .gt-arc-draw { stroke-dasharray: var(--gt-arc-len, 600); animation: gtArcDraw .9s cubic-bezier(.3,.7,.3,1) both; }
