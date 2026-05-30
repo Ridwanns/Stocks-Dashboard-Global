@@ -566,10 +566,28 @@ const GT_ANIM_CSS = `
 .gt-loader[data-phase="zoom"] .gt-loader-ui { opacity: 0; transform: scale(1.12); }
 .gt-loader-kicker { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #8b95b8; text-transform: uppercase; }
 .gt-loader-title { font-family: 'Instrument Serif', serif; font-size: clamp(34px, 8vw, 66px); color: #eef0ff; letter-spacing: -1.5px; line-height: 1; margin-top: 12px; }
-.gt-loader-bar { width: min(260px, 64vw); height: 2px; background: rgba(255,255,255,.1); margin: 24px auto 0; overflow: hidden; border-radius: 2px; }
-.gt-loader-bar > i { display: block; height: 100%; width: 42%; border-radius: 2px; background: linear-gradient(90deg, #8b5cf6, #22d3ee); animation: gtLoadSlide 1.15s cubic-bezier(.5,0,.5,1) infinite; }
-@keyframes gtLoadSlide { 0% { transform: translateX(-130%); } 100% { transform: translateX(330%); } }
-.gt-loader-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2.5px; color: #6b7494; text-transform: uppercase; margin-top: 14px; }
+.gt-loader-enter-wrap { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.gt-loader-enter {
+  pointer-events: auto; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: #eef0ff; padding: 14px 34px; border-radius: 100px;
+  background: rgba(139,92,246,.15);
+  border: 1px solid rgba(139,92,246,.6);
+  box-shadow: 0 0 26px -8px rgba(139,92,246,.85), inset 0 0 18px -12px rgba(34,211,238,.7);
+  transition: background .22s ease, transform .22s ease, box-shadow .22s ease;
+  animation: gtEnterPulse 2.6s ease-in-out infinite;
+}
+.gt-loader-enter:hover { background: rgba(139,92,246,.3); transform: translateY(-2px) scale(1.04); box-shadow: 0 0 42px -6px rgba(139,92,246,1); }
+.gt-loader-enter:active { transform: translateY(0) scale(.99); }
+.gt-loader-arrow { display: inline-block; transition: transform .22s ease; }
+.gt-loader-enter:hover .gt-loader-arrow { transform: translateX(6px); }
+@keyframes gtEnterPulse { 0%,100% { box-shadow: 0 0 22px -10px rgba(139,92,246,.7), inset 0 0 18px -12px rgba(34,211,238,.6); } 50% { box-shadow: 0 0 40px -6px rgba(139,92,246,1), inset 0 0 22px -10px rgba(34,211,238,.8); } }
+.gt-loader[data-phase="zoom"] .gt-loader-enter { animation: none; }
+.gt-loader-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2.5px; color: #8b95b8; text-transform: uppercase; }
+
+/* Whole-app cinematic settle as the galaxy hands off to the dashboard. */
+.gt-app-enter { animation: gtAppEnter .9s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes gtAppEnter { from { opacity: 0; transform: scale(1.035); } to { opacity: 1; transform: none; } }
 
 /* ════════ Rich Financials / section transitions ════════ */
 @keyframes gtSlideFadeR { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: translateX(0); } }
@@ -586,7 +604,7 @@ const GT_ANIM_CSS = `
 .gt-slide-l { animation: gtSlideFadeL .46s cubic-bezier(.22,.8,.3,1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .gt-sec-zoom > *, .gt-slide-r, .gt-slide-l, .gt-loader-ui { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .gt-sec-zoom > *, .gt-slide-r, .gt-slide-l, .gt-loader-ui, .gt-loader-enter, .gt-app-enter { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
 
 /* ════════ Extra mobile hardening ════════ */

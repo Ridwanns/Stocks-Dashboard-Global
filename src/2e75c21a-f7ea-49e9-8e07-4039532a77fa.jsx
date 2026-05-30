@@ -11,14 +11,16 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "aurora": true
 }/*EDITMODE-END*/;
 
-// ── Cinematic 3D loading screen ───────────────────────────────────
-// Rotating spiral galaxy that holds until the live feed lands its first
-// tick (or a max timeout), then dollies through the core and fades to
-// reveal the dashboard already rendered behind it.
-function LoadingScreen({ onDone }) {
+// ── Cinematic 3D landing screen ───────────────────────────────────
+// The rotating spiral galaxy is the hero: it idles and spins while live
+// data syncs in the background. The user presses "Enter" (or clicks
+// anywhere) to dolly the camera through the core, then hand off to the
+// dashboard — whose section reveal animations play fresh on mount.
+function LoadingScreen({ onEnter }) {
   const canvasRef = React.useRef(null);
   const ctrlRef = React.useRef(null);
-  const [phase, setPhase] = React.useState('loading');
+  const [phase, setPhase] = React.useState('idle');   // idle → zoom
+  const [ready, setReady] = React.useState(false);     // live data synced
   const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   React.useEffect(() => {
@@ -35,47 +37,59 @@ function LoadingScreen({ onDone }) {
       cleanupReady = () => window.removeEventListener('__galaxyReady', onReady);
     }
 
-    const t0 = Date.now();
-    const MIN_MS = reduced ? 350 : 2300;   // let the loop breathe
-    const MAX_MS = reduced ? 1200 : 6500;  // never hang
-    let finished = false;
-    const finish = () => {
-      if (finished) return; finished = true;
-      const wait = Math.max(0, MIN_MS - (Date.now() - t0));
-      setTimeout(() => {
-        setPhase('zoom');
-        const c = ctrlRef.current;
-        if (c && c.zoomIn && !reduced) {
-          c.zoomIn(1700, () => { try { c.stop(); } catch (e) {} onDone && onDone(); });
-        } else {
-          if (c) try { c.stop(); } catch (e) {}
-          onDone && onDone();
-        }
-      }, wait);
-    };
-
-    const onTick = () => finish();
-    window.addEventListener('live-tick', onTick);
-    const maxTimer = setTimeout(finish, MAX_MS);
-    if (window.LIVE && window.LIVE.feedStatus === 'LIVE') finish();
+    // Background data sync — only flips the status label; never auto-advances.
+    const markReady = () => setReady(true);
+    window.addEventListener('live-tick', markReady);
+    if (window.LIVE && window.LIVE.feedStatus === 'LIVE') setReady(true);
+    const readyFallback = setTimeout(markReady, 4000);
 
     return () => {
       cleanupReady && cleanupReady();
-      window.removeEventListener('live-tick', onTick);
-      clearTimeout(maxTimer);
+      window.removeEventListener('live-tick', markReady);
+      clearTimeout(readyFallback);
       const c = ctrlRef.current;
       if (c) try { c.stop(); } catch (e) {}
     };
   }, []);
 
+  const enteringRef = React.useRef(false);
+  const enter = React.useCallback(() => {
+    if (enteringRef.current) return;
+    enteringRef.current = true;
+    setPhase('zoom');
+    const c = ctrlRef.current;
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true;
+      try { c && c.stop(); } catch (e) {}
+      onEnter && onEnter();
+    };
+    if (c && c.zoomIn && !reduced) {
+      c.zoomIn(1700, finish);
+      // Safety net: guarantee the handoff fires even if requestAnimationFrame
+      // is throttled (e.g. the tab loses focus mid-zoom).
+      setTimeout(finish, 2100);
+    } else {
+      setTimeout(finish, 260);
+    }
+  }, [reduced, onEnter]);
+
   return (
-    <div className="gt-loader" data-phase={phase}>
+    <div className="gt-loader" data-phase={phase} onClick={enter} role="button" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter(); } }}>
       <canvas ref={canvasRef} />
       <div className="gt-loader-ui">
         <div className="gt-loader-kicker">// RIDWAN · CHIP DESK</div>
         <div className="gt-loader-title">AI chip stocks<span style={{ color: '#22d3ee' }}>.</span></div>
-        <div className="gt-loader-bar"><i /></div>
-        <div className="gt-loader-sub">Initializing live terminal</div>
+        <div className="gt-loader-enter-wrap">
+          <button className="gt-loader-enter" onClick={(e) => { e.stopPropagation(); enter(); }}>
+            Enter terminal <span className="gt-loader-arrow">→</span>
+          </button>
+          <div className="gt-loader-sub">
+            {ready ? '● live market data ready — click anywhere to launch'
+                   : '◌ syncing live market data…'}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -107,8 +121,13 @@ function App() {
   return (
     <ThemeCtx.Provider value={theme}>
       <GTAnimStyle />
-      {booting && <LoadingScreen onDone={() => setBooting(false)} />}
       <Aurora />
+      {booting && <LoadingScreen onEnter={() => setBooting(false)} />}
+      {/* Gate the whole app behind the landing screen so the section reveal
+          animations play FRESH the moment the user enters — not silently
+          behind the galaxy. */}
+      {!booting && (
+      <div className="gt-app-enter">
       <Nav onTweaks={openTweaks} />
       <Hero />
       <Dashboard />
@@ -148,6 +167,8 @@ function App() {
           />
         </TweakSection>
       </TweaksPanel>
+      </div>
+      )}
     </ThemeCtx.Provider>
   );
 }
