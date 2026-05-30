@@ -108,6 +108,16 @@ function App() {
     return () => { document.body.style.overflow = ''; };
   }, [booting]);
 
+  // When the dashboard is revealed, nudge the background starfield to re-measure
+  // and repaint — it occasionally came up blank on a cold load because its first
+  // frames rendered while still behind the loader / effectively hidden.
+  React.useEffect(() => {
+    if (booting) return;
+    const kick = () => window.dispatchEvent(new Event('resize'));
+    const a = setTimeout(kick, 60), b = setTimeout(kick, 450);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, [booting]);
+
   const theme = React.useMemo(() => ({
     palette: lookupPalette(t.palette),
     headline: HEADLINE_FONTS[t.headlineFont] || HEADLINE_FONTS['Serif (Instrument)'],

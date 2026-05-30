@@ -593,6 +593,31 @@ const GT_ANIM_CSS = `
 @keyframes gtShimmer { 0%,100% { opacity: .3; } 50% { opacity: .7; } }
 .gt-idx-skel { animation: gtShimmer 1.25s ease-in-out infinite; }
 
+/* ════════ Globe "Iron-Man" lock-on HUD ════════ */
+.gt-hud { z-index: 3; }
+.gt-hud-ring { transform-origin: 15px 15px; animation: gtHudSpin 6s linear infinite; opacity: .9; }
+@keyframes gtHudSpin { to { transform: rotate(360deg); } }
+.gt-hud-conn { stroke-dasharray: 140; stroke-dashoffset: 140; animation: gtHudDraw .55s ease-out forwards; opacity: .85; }
+@keyframes gtHudDraw { to { stroke-dashoffset: 0; } }
+.gt-hud-card { position: absolute; left: 42px; top: -94px; min-width: 152px; padding: 10px 13px 12px;
+  background: rgba(8,12,24,.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid; border-radius: 4px; overflow: hidden;
+  animation: gtHudCard .42s cubic-bezier(.2,.8,.3,1) both; box-shadow: 0 8px 30px -12px rgba(0,0,0,.7); }
+@keyframes gtHudCard { from { opacity: 0; transform: translateY(8px) scale(.93); } to { opacity: 1; transform: none; } }
+.gt-hud-head { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 1.4px; font-weight: 700; }
+.gt-hud-name { font-size: 18px; color: #eef0ff; letter-spacing: -.3px; margin-top: 3px; line-height: 1.05; }
+.gt-hud-val { display: flex; align-items: baseline; gap: 9px; margin-top: 6px; }
+.gt-hud-corner { position: absolute; width: 9px; height: 9px; border-style: solid; border-width: 0; opacity: .9; }
+.gt-hud-corner.tl { left: -1px; top: -1px; border-left-width: 2px; border-top-width: 2px; }
+.gt-hud-corner.tr { right: -1px; top: -1px; border-right-width: 2px; border-top-width: 2px; }
+.gt-hud-corner.bl { left: -1px; bottom: -1px; border-left-width: 2px; border-bottom-width: 2px; }
+.gt-hud-corner.br { right: -1px; bottom: -1px; border-right-width: 2px; border-bottom-width: 2px; }
+.gt-hud-scan { position: absolute; left: 0; right: 0; top: 0; height: 2px; animation: gtHudScanMove 2.6s ease-in-out infinite; }
+@keyframes gtHudScanMove { 0% { top: 0; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .gt-hud-ring, .gt-hud-conn, .gt-hud-card, .gt-hud-scan { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1 !important; }
+}
+
 /* ════════ Rich Financials / section transitions ════════ */
 @keyframes gtSlideFadeR { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes gtSlideFadeL { from { opacity: 0; transform: translateX(-34px); } to { opacity: 1; transform: translateX(0); } }

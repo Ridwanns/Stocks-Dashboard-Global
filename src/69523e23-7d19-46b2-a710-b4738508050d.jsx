@@ -194,12 +194,23 @@ window.startGalaxy = function startGalaxy(canvas, accentA = '#8b5cf6', accentB =
   requestAnimationFrame(onResize);
   setTimeout(onResize, 120);
   setTimeout(onResize, 600);
+  setTimeout(onResize, 1500);
   window.addEventListener('resize', onResize);
   let ro = null;
   if (typeof ResizeObserver !== 'undefined') {
     ro = new ResizeObserver(onResize);
     try { ro.observe(canvas); } catch (e) {}
   }
+  // Re-kick sizing + render when the tab becomes visible again — fixes the
+  // starfield occasionally coming up blank on a cold GitHub Pages load where
+  // the first frames rendered while the page was still effectively hidden.
+  const onVis = () => { if (document.visibilityState === 'visible') { onResize(); if (!STATE.raf) STATE.raf = requestAnimationFrame(loop); } };
+  document.addEventListener('visibilitychange', onVis);
+  // Recover gracefully if the GPU drops the context (mobile / memory pressure).
+  const onCtxLost = (e) => { e.preventDefault(); };
+  const onCtxRestored = () => { try { window.startGalaxy(canvas, accentA, accentB); } catch (e) {} };
+  canvas.addEventListener('webglcontextlost', onCtxLost, false);
+  canvas.addEventListener('webglcontextrestored', onCtxRestored, false);
 
   // Track mouse for parallax — normalized to viewport [-1, 1].
   const onMove = (e) => {
@@ -213,8 +224,12 @@ window.startGalaxy = function startGalaxy(canvas, accentA = '#8b5cf6', accentB =
   // Return a stopper so the React component can clean up.
   return () => {
     cancelAnimationFrame(STATE.raf);
+    STATE.raf = 0;
     window.removeEventListener('resize', onResize);
     window.removeEventListener('mousemove', onMove);
+    document.removeEventListener('visibilitychange', onVis);
+    canvas.removeEventListener('webglcontextlost', onCtxLost);
+    canvas.removeEventListener('webglcontextrestored', onCtxRestored);
     if (ro) { try { ro.disconnect(); } catch (e) {} }
     try { STATE.renderer?.forceContextLoss(); } catch (e) {}
     STATE.renderer?.dispose();
@@ -507,11 +522,24 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   const sun = new THREE.DirectionalLight(0xffffff, 1.25); sun.position.set(-0.7, 0.45, 1); scene.add(sun);
 
   const R = 92;
-  const earthGroup = new THREE.Group(); earthGroup.rotation.z = 0.18; scene.add(earthGroup);
-  const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 64), new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), roughness: 1, metalness: 0 }));
+  const LON_OFFSET = 0; // tweak (deg) if a real texture's Greenwich seam is shifted
+  const earthGroup = new THREE.Group(); earthGroup.rotation.z = 0.16; scene.add(earthGroup);
+  // Real equirectangular Earth texture when available (markers then line up
+  // with the actual continents); procedural fallback otherwise.
+  const earthMat = new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), roughness: 1, metalness: 0.05 });
+  if (window.__EARTH_TEX) {
+    try {
+      new THREE.TextureLoader().load(window.__EARTH_TEX, (tex) => {
+        try { tex.colorSpace = THREE.SRGBColorSpace; } catch (e) {}
+        if (earthMat.map) earthMat.map.dispose();
+        earthMat.map = tex; earthMat.needsUpdate = true;
+      });
+    } catch (e) {}
+  }
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 64), earthMat);
   earthGroup.add(earth);
   // graticule wireframe for a "data globe" feel
-  const grid = new THREE.Mesh(new THREE.SphereGeometry(R * 1.004, 36, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), wireframe: true, transparent: true, opacity: 0.06, depthWrite: false }));
+  const grid = new THREE.Mesh(new THREE.SphereGeometry(R * 1.004, 36, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), wireframe: true, transparent: true, opacity: 0.07, depthWrite: false }));
   earthGroup.add(grid);
   // atmosphere + soft glow
   const atmo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.07, 48, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.15, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -524,17 +552,19 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   // markers parented to the earth group so they spin with the globe
   const markerMap = {};
   markets.forEach((m) => {
-    const pos = latLonToVec3(m.lat, m.lon, R * 1.015);
+    const pos = latLonToVec3(m.lat, m.lon + LON_OFFSET, R * 1.015);
     const normal = pos.clone().normalize();
     const grp = new THREE.Group();
     const dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(accentB), transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
-    dot.scale.set(13, 13, 1); dot.position.copy(pos); grp.add(dot);
+    dot.scale.set(11, 11, 1); dot.position.copy(pos); grp.add(dot);
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, R * 0.16, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
     beam.position.copy(normal.clone().multiplyScalar(R * 1.08));
     beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
     grp.add(beam);
     earthGroup.add(grp);
-    markerMap[m.id] = { dot, beam, lx: pos.x, lz: pos.z, base: 13 };
+    // ry that brings this marker to the front meridian (world.x≈0, world.z>0)
+    const focusRy = Math.atan2(-pos.x, pos.z);
+    markerMap[m.id] = { dot, beam, pos, base: 11, focusRy };
   });
 
   const size = () => {
@@ -548,21 +578,54 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   let ro = null;
   if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(size); try { ro.observe(canvas); } catch (e) {} }
 
-  let raf = 0, t0 = performance.now(), frontId = null, frontCb = null;
+  let raf = 0, t0 = performance.now(), last = t0;
+  let selectedId = null, projectCb = null;
+  let ryCur = 0, ryAuto = 0;     // current rotation, and free-running auto angle
+  const _v = new THREE.Vector3();
   function frame() {
-    const el = (performance.now() - t0) * 0.001;
-    const ry = el * 0.16;
-    earthGroup.rotation.y = ry;
-    // front-most marker (max world-z after Y rotation) — pulse + report it
-    let best = null, bestZ = -Infinity;
+    const now = performance.now();
+    const dt = Math.min(64, now - last); last = now;
+    const el = (now - t0) * 0.001;
+    ryAuto += dt * 0.00018;        // gentle idle drift (rad/ms)
+    // When a market is selected, ease the globe so it faces the camera and hold
+    // there; otherwise drift slowly. (No auto-cycling — selection is by click.)
+    if (selectedId && markerMap[selectedId]) {
+      let target = markerMap[selectedId].focusRy;
+      let d = ((target - ryCur + Math.PI) % (Math.PI * 2)) - Math.PI;
+      ryCur += d * Math.min(1, dt * 0.005);   // ease toward target
+    } else {
+      ryCur = ryAuto;
+    }
+    earthGroup.rotation.y = ryCur;
+    earthGroup.updateMatrixWorld(true);
+
+    // pulse markers; selected one is brightest/biggest
     for (const id in markerMap) {
       const mk = markerMap[id];
-      const wz = -mk.lx * Math.sin(ry) + mk.lz * Math.cos(ry);
-      if (wz > bestZ) { bestZ = wz; best = id; }
-      const tw = 0.8 + 0.25 * Math.sin(el * 3 + mk.lx);
+      const sel = id === selectedId;
+      const tw = (sel ? 1.5 : 0.85) + 0.22 * Math.sin(el * 3 + mk.pos.x);
       mk.dot.scale.set(mk.base * tw, mk.base * tw, 1);
+      mk.dot.material.opacity = sel ? 1 : 0.9;
+      mk.beam.material.opacity = sel ? 0.95 : 0.5;
     }
-    if (best && best !== frontId) { frontId = best; if (frontCb) frontCb(frontId); }
+
+    // project the selected marker to 2D canvas pixels for the HTML HUD overlay
+    if (projectCb) {
+      if (selectedId && markerMap[selectedId]) {
+        _v.copy(markerMap[selectedId].pos); earth.localToWorld(_v); // world pos
+        const wz = _v.z; // not exactly camera-space, recompute facing below
+        const proj = _v.clone().project(camera);
+        const w = canvas.clientWidth || 320, h = canvas.clientHeight || 320;
+        const px = (proj.x * 0.5 + 0.5) * w;
+        const py = (-proj.y * 0.5 + 0.5) * h;
+        // facing the camera if the marker's world position is on the near hemisphere
+        const facing = _v.z > 0;
+        projectCb({ id: selectedId, x: px, y: py, visible: facing && proj.z < 1 });
+      } else {
+        projectCb(null);
+      }
+    }
+
     renderer.render(scene, camera);
     raf = requestAnimationFrame(frame);
   }
@@ -570,7 +633,7 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
 
   return {
     stop() {
-      if (raf) cancelAnimationFrame(raf);
+      if (raf) cancelAnimationFrame(raf); raf = 0;
       window.removeEventListener('resize', size);
       if (ro) { try { ro.disconnect(); } catch (e) {} }
       try { scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); try { renderer.forceContextLoss(); } catch(fe){} renderer.dispose(); } catch (e) {}
@@ -584,7 +647,8 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
         markerMap[id].beam.material.color.set(c);
       }
     },
-    onFront(cb) { frontCb = cb; if (frontId) cb(frontId); },
+    setSelected(id) { selectedId = (id && markerMap[id]) ? id : null; },
+    onProject(cb) { projectCb = cb; },
   };
 };
 

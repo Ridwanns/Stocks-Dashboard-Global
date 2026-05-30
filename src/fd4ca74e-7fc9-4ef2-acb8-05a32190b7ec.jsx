@@ -701,9 +701,15 @@ function GlobalMarketGlobe(){
   const {palette,headline}=useTheme();
   const canvasRef=dsUseRef(null);
   const ctrlRef=dsUseRef(null);
+  const hudRef=dsUseRef(null);
   const markets=(typeof window!=='undefined'&&window.MARKET_INDICES)||[];
   const [data,setData]=dsUseState(()=>({...(typeof window!=='undefined'&&window.LIVE&&window.LIVE.indices)||{}}));
-  const [front,setFront]=dsUseState(null);
+  // Selection is by CLICK only (no auto-cycling). Default to NASDAQ so the HUD
+  // is discoverable on first paint; the user drives it from there.
+  const [selId,setSelId]=dsUseState(()=>{ const ix=markets.find(m=>m.id==='IXIC'); return ix?ix.id:(markets[0]&&markets[0].id)||null; });
+  const selRef=dsUseRef(selId);
+
+  const select=(id)=>{ selRef.current=id; setSelId(id); if(ctrlRef.current) ctrlRef.current.setSelected(id); };
 
   dsUseEffect(()=>{
     const canvas=canvasRef.current;
@@ -712,8 +718,16 @@ function GlobalMarketGlobe(){
       if(!window.startMarketGlobe||!canvas) return false;
       const ctrl=window.startMarketGlobe(canvas, markets, {accentA:palette.a, accentB:palette.b});
       ctrlRef.current=ctrl;
-      ctrl.onFront(id=>setFront(id));
       ctrl.setData((window.LIVE&&window.LIVE.indices)||{});
+      ctrl.setSelected(selRef.current);
+      // Drive the HUD position straight from the render loop (no React re-render
+      // per frame) — just mutate the overlay transform/opacity.
+      ctrl.onProject((p)=>{
+        const el=hudRef.current; if(!el) return;
+        if(!p||!p.visible){ el.style.opacity='0'; return; }
+        el.style.opacity='1';
+        el.style.transform=`translate(${p.x}px, ${p.y}px)`;
+      });
       return true;
     };
     if(!begin()){
@@ -735,45 +749,59 @@ function GlobalMarketGlobe(){
   },[palette.a,palette.b]);
 
   const anyData=Object.keys(data).length>0;
-  const frontM=markets.find(m=>m.id===front);
-  const frontD=front?data[front]:null;
+  const selM=markets.find(m=>m.id===selId);
+  const selD=selId?data[selId]:null;
+  const selUp=selD?selD.chgPct>=0:true;
+  const selC=selD?(selUp?GT.green:GT.red):palette.b;
 
   return(
     <Panel kicker="Global markets · live" title="World index board" accent={palette.b}
       right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:anyData?GT.green:GT.amber}}>
         <span style={{width:5,height:5,borderRadius:'50%',background:anyData?GT.green:GT.amber,boxShadow:anyData?`0 0 6px ${GT.green}`:'none'}}/>{anyData?'LIVE':'CONNECTING'}</span>}>
       <div className="gt-globe-wrap" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'stretch'}}>
-        {/* 3D globe — fixed-height canvas so it never collapses on flex/grid items */}
-        <div className="gt-globe-canvas" style={{position:'relative',height:340}}>
-          <canvas ref={canvasRef} style={{width:'100%',height:340,display:'block'}}/>
-          {/* floating callout for the front-facing market */}
-          {frontM&&(
-            <div style={{position:'absolute',left:12,bottom:12,padding:'9px 13px',background:'rgba(10,14,28,.72)',backdropFilter:'blur(10px)',border:`1px solid ${palette.edge}`,borderLeft:`3px solid ${frontD?(frontD.chgPct>=0?GT.green:GT.red):palette.b}`,borderRadius:6,pointerEvents:'none'}}>
-              <div style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,letterSpacing:1.2}}>{frontM.flag} {frontM.city.toUpperCase()}</div>
-              <div style={{fontFamily:headline,fontSize:18,color:GT.text,letterSpacing:-0.3,marginTop:2}}>{frontM.name}</div>
-              {frontD&&<div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:3}}>
-                <span style={{fontFamily:GT.fontMono,fontSize:14,color:GT.text,fontWeight:700}}>{fmtIdx(frontD.price)}</span>
-                <span style={{fontFamily:GT.fontMono,fontSize:11,color:frontD.chgPct>=0?GT.green:GT.red,fontWeight:700}}>{frontD.chgPct>=0?'▲ +':'▼ '}{Math.abs(frontD.chgPct).toFixed(2)}%</span>
-              </div>}
+        {/* 3D globe + Iron-Man HUD overlay */}
+        <div className="gt-globe-canvas" style={{position:'relative',height:360,overflow:'hidden'}}>
+          <canvas ref={canvasRef} style={{width:'100%',height:360,display:'block'}}/>
+          {/* HUD — positioned at the selected marker via ref-driven transform */}
+          {selM&&(
+            <div ref={hudRef} className="gt-hud" style={{position:'absolute',left:0,top:0,transform:'translate(50%,42%)',pointerEvents:'none',willChange:'transform',transition:'opacity .3s ease'}}>
+              <svg className="gt-hud-svg" width="180" height="150" style={{position:'absolute',left:-15,top:-15,overflow:'visible'}}>
+                <circle className="gt-hud-ring" cx="15" cy="15" r="12" fill="none" stroke={selC} strokeWidth="1.4" strokeDasharray="14 6"/>
+                <circle cx="15" cy="15" r="3" fill={selC}/>
+                <line className="gt-hud-conn" x1="15" y1="15" x2="58" y2="-58" stroke={selC} strokeWidth="1.2"/>
+              </svg>
+              <div className="gt-hud-card" style={{borderColor:`${selC}66`}}>
+                <i className="gt-hud-corner tl" style={{borderColor:selC}}/><i className="gt-hud-corner tr" style={{borderColor:selC}}/>
+                <i className="gt-hud-corner bl" style={{borderColor:selC}}/><i className="gt-hud-corner br" style={{borderColor:selC}}/>
+                <div className="gt-hud-head" style={{color:selC}}>{selM.flag} {selM.city.toUpperCase()} · {selM.cc}</div>
+                <div className="gt-hud-name" style={{fontFamily:headline}}>{selM.name}</div>
+                <div className="gt-hud-val">
+                  <span className={selD?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:17,fontWeight:700,color:GT.text}}>{selD?fmtIdx(selD.price):'————'}</span>
+                  <span style={{fontFamily:GT.fontMono,fontSize:12,fontWeight:700,color:selC}}>{selD?`${selUp?'▲ +':'▼ '}${Math.abs(selD.chgPct).toFixed(2)}%`:'···'}</span>
+                </div>
+                <div className="gt-hud-scan" style={{background:`linear-gradient(90deg,transparent,${selC}aa,transparent)`}}/>
+              </div>
             </div>
           )}
+          <div style={{position:'absolute',left:10,bottom:8,fontFamily:GT.fontMono,fontSize:8.5,color:'rgba(160,172,200,.65)',letterSpacing:1,pointerEvents:'none'}}>◐ TAP A MARKET TO LOCK ON</div>
         </div>
-        {/* Live index list */}
+        {/* Live index list — click a row to lock the globe onto that exchange */}
         <div className="gt-globe-list" style={{display:'flex',flexDirection:'column',justifyContent:'center'}}>
           {markets.map((m,i)=>{
             const d=data[m.id];
             const up=d?d.chgPct>=0:true;
             const c=d?(up?GT.green:GT.red):GT.textDim;
-            const isFront=front===m.id;
+            const isSel=selId===m.id;
             return(
-              <div key={m.id} style={{
-                display:'grid',gridTemplateColumns:'auto 1fr auto',gap:10,alignItems:'center',
+              <div key={m.id} onClick={()=>select(m.id)} style={{
+                display:'grid',gridTemplateColumns:'auto 1fr auto',gap:10,alignItems:'center',cursor:'pointer',
                 padding:'8px 10px',borderBottom:i<markets.length-1?`1px dashed ${palette.edge}`:'none',
-                background:isFront?palette.aSoft:'transparent',borderRadius:isFront?5:0,transition:'background .3s',
+                background:isSel?palette.aSoft:'transparent',borderRadius:isSel?5:0,
+                boxShadow:isSel?`inset 2px 0 0 ${selC}`:'none',transition:'background .25s,box-shadow .25s',
               }}>
                 <span style={{fontSize:15,lineHeight:1}}>{m.flag}</span>
                 <div style={{minWidth:0}}>
-                  <div style={{fontFamily:GT.fontMono,fontSize:11.5,color:GT.text,fontWeight:700,letterSpacing:0.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
+                  <div style={{fontFamily:GT.fontMono,fontSize:11.5,color:isSel?GT.text:GT.text,fontWeight:700,letterSpacing:0.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
                   <div style={{fontFamily:GT.fontMono,fontSize:8.5,color:GT.textDim,letterSpacing:0.8}}>{m.city.toUpperCase()}</div>
                 </div>
                 <div style={{textAlign:'right'}}>

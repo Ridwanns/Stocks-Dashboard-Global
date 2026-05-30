@@ -27,6 +27,8 @@
     { id:'FTSE',  name:'FTSE 100',       sym:'^FTSE',     city:'London',    cc:'GB', flag:'🇬🇧', lat:51.51,  lon:-0.13 },
     { id:'GDAXI', name:'DAX',            sym:'^GDAXI',    city:'Frankfurt', cc:'DE', flag:'🇩🇪', lat:50.11,  lon:8.68 },
     { id:'GSPC',  name:'S&P 500',        sym:'^GSPC',     city:'New York',  cc:'US', flag:'🇺🇸', lat:40.71,  lon:-74.01 },
+    { id:'IXIC',  name:'NASDAQ Comp.',   sym:'^IXIC',     city:'New York',  cc:'US', flag:'🇺🇸', lat:41.40,  lon:-73.30 },
+    { id:'DJI',   name:'Dow Jones',      sym:'^DJI',      city:'New York',  cc:'US', flag:'🇺🇸', lat:39.90,  lon:-75.00 },
   ];
   window.MARKET_INDICES = INDICES;
   window.LIVE.indices = window.LIVE.indices || {};
@@ -40,7 +42,7 @@
   let proxyIdx = 0;
 
   async function fetchWithProxy(url, timeout) {
-    timeout = timeout || 10000;
+    timeout = timeout || 6500;   // tighter timeout → fail over to next proxy faster
     for (let i = 0; i < PROXIES.length; i++) {
       const pi = (proxyIdx + i) % PROXIES.length;
       try {
@@ -523,6 +525,9 @@
     window.LIVE.feedStatus = 'CONNECTING';
     window.dispatchEvent(new CustomEvent('live-tick', {detail:{status:'connecting'}}));
 
+    // Fetch stocks AND global indices concurrently so the globe lights up as
+    // fast as the tickers (previously indices waited for the stock fetch).
+    var idxPromise = fetchIndices().then(function(m){ console.log('[LiveFeed] Indices: ' + m + '/' + INDICES.length + ' updated'); });
     var n = await fetchAll();
     console.log('[LiveFeed] Initial: ' + n + '/' + SYMBOLS.length + ' tickers updated');
 
@@ -531,12 +536,9 @@
       console.warn('[LiveFeed] All proxies failed — using static data as fallback');
     }
 
-    // Global indices for the globe (don't block the stock feed on these).
-    fetchIndices().then(function(m){ console.log('[LiveFeed] Indices: ' + m + '/' + INDICES.length + ' updated'); });
-
     // Poll every 30 seconds
     _intervalId = setInterval(function(){ fetchAll(); }, 30000);
-    _idxIntervalId = setInterval(function(){ fetchIndices(); }, 60000);
+    _idxIntervalId = setInterval(function(){ fetchIndices(); }, 45000);
   }
 
   function stopFeed() {
@@ -553,11 +555,13 @@
     window.addEventListener('DOMContentLoaded', function(){ setTimeout(startFeed, 400); });
   }
 
-  // Re-fetch immediately whenever the user returns to the tab (so data is
-  // never stale when they come back), throttled to once per 15s.
-  var _lastVis = 0;
+  // Re-fetch only when the user RETURNS to the tab after being away, throttled
+  // to once per 20s. Seed _lastVis to "now" so the initial visibility event on
+  // first load does NOT fire a second fetch on top of startFeed (that stacked
+  // double-fetch was the "auto-refresh twice" glitch on entry).
+  var _lastVis = Date.now();
   document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible' && Date.now() - _lastVis > 15000) {
+    if (document.visibilityState === 'visible' && Date.now() - _lastVis > 20000) {
       _lastVis = Date.now();
       fetchAll();
       fetchIndices();
