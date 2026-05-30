@@ -16,6 +16,21 @@
   });
   window.CANDLES = window.CANDLES || {};
 
+  // ── Global market indices (for the Overview 3D globe) ──────────────
+  // Yahoo symbols + lat/lon so markers can be placed on the rotating Earth.
+  const INDICES = [
+    { id:'N225',  name:'Nikkei 225',     sym:'^N225',     city:'Tokyo',     cc:'JP', flag:'🇯🇵', lat:35.68,  lon:139.69 },
+    { id:'KS11',  name:'KOSPI',          sym:'^KS11',     city:'Seoul',     cc:'KR', flag:'🇰🇷', lat:37.57,  lon:126.98 },
+    { id:'SSEC',  name:'SSE Composite',  sym:'000001.SS', city:'Shanghai',  cc:'CN', flag:'🇨🇳', lat:31.23,  lon:121.47 },
+    { id:'HSI',   name:'Hang Seng',      sym:'^HSI',      city:'Hong Kong', cc:'HK', flag:'🇭🇰', lat:22.32,  lon:114.17 },
+    { id:'JKSE',  name:'IDX Composite',  sym:'^JKSE',     city:'Jakarta',   cc:'ID', flag:'🇮🇩', lat:-6.21,  lon:106.85 },
+    { id:'FTSE',  name:'FTSE 100',       sym:'^FTSE',     city:'London',    cc:'GB', flag:'🇬🇧', lat:51.51,  lon:-0.13 },
+    { id:'GDAXI', name:'DAX',            sym:'^GDAXI',    city:'Frankfurt', cc:'DE', flag:'🇩🇪', lat:50.11,  lon:8.68 },
+    { id:'GSPC',  name:'S&P 500',        sym:'^GSPC',     city:'New York',  cc:'US', flag:'🇺🇸', lat:40.71,  lon:-74.01 },
+  ];
+  window.MARKET_INDICES = INDICES;
+  window.LIVE.indices = window.LIVE.indices || {};
+
   // ── CORS proxy rotation ───────────────────────────────────────────
   const PROXIES = [
     url => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
@@ -453,6 +468,7 @@
   // FETCH LOOP
   // ════════════════════════════════════════════════════════════════════
   var _intervalId = null;
+  var _idxIntervalId = null;
 
   async function fetchAll() {
     var updated = 0;
@@ -476,6 +492,32 @@
     return updated;
   }
 
+  // ── Global market indices fetch (for the Overview globe) ──────────
+  async function fetchIndices() {
+    var updated = 0;
+    await Promise.all(INDICES.map(async function(ix){
+      try {
+        var json = await fetchChart(ix.sym, '5d', '1d');
+        var p = parseChart(json);
+        if (p && p.price) {
+          var prev = p.prevClose || p.price;
+          window.LIVE.indices[ix.id] = {
+            price: p.price, prevClose: prev,
+            chg: p.price - prev,
+            chgPct: prev ? ((p.price / prev) - 1) * 100 : 0,
+            t: Date.now(),
+          };
+          updated++;
+        }
+      } catch(e) {}
+    }));
+    if (updated > 0) {
+      window.LIVE.indicesUpdated = Date.now();
+      window.dispatchEvent(new CustomEvent('idx-tick', { detail:{ updated: updated, time: Date.now() } }));
+    }
+    return updated;
+  }
+
   async function startFeed() {
     console.log('[LiveFeed] Starting real-time data feed...');
     window.LIVE.feedStatus = 'CONNECTING';
@@ -489,12 +531,17 @@
       console.warn('[LiveFeed] All proxies failed — using static data as fallback');
     }
 
+    // Global indices for the globe (don't block the stock feed on these).
+    fetchIndices().then(function(m){ console.log('[LiveFeed] Indices: ' + m + '/' + INDICES.length + ' updated'); });
+
     // Poll every 30 seconds
     _intervalId = setInterval(function(){ fetchAll(); }, 30000);
+    _idxIntervalId = setInterval(function(){ fetchIndices(); }, 60000);
   }
 
   function stopFeed() {
     if (_intervalId) { clearInterval(_intervalId); _intervalId = null; }
+    if (_idxIntervalId) { clearInterval(_idxIntervalId); _idxIntervalId = null; }
     window.LIVE.feedStatus = 'STOPPED';
   }
 
@@ -513,9 +560,10 @@
     if (document.visibilityState === 'visible' && Date.now() - _lastVis > 15000) {
       _lastVis = Date.now();
       fetchAll();
+      fetchIndices();
     }
   });
 
   // Expose API
-  window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };
+  window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchIndices:fetchIndices, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };
 })();

@@ -61,8 +61,11 @@ function LoadingScreen({ onEnter }) {
     let done = false;
     const finish = () => {
       if (done) return; done = true;
-      try { c && c.stop(); } catch (e) {}
+      // Reveal the dashboard FIRST so React's mount owns the frame, then tear
+      // down the loader's WebGL a beat later — disposing inline here made the
+      // handoff stutter (dispose + heavy mount competed for the same frame).
       onEnter && onEnter();
+      setTimeout(() => { try { c && c.stop(); } catch (e) {} }, 80);
     };
     if (c && c.zoomIn && !reduced) {
       c.zoomIn(1700, finish);

@@ -216,6 +216,7 @@ window.startGalaxy = function startGalaxy(canvas, accentA = '#8b5cf6', accentB =
     window.removeEventListener('resize', onResize);
     window.removeEventListener('mousemove', onMove);
     if (ro) { try { ro.disconnect(); } catch (e) {} }
+    try { STATE.renderer?.forceContextLoss(); } catch (e) {}
     STATE.renderer?.dispose();
     STATE.renderer = null;
   };
@@ -338,8 +339,9 @@ window.startLoadingGalaxy = function startLoadingGalaxy(canvas, opts) {
   scene.add(new THREE.AmbientLight(0x4a5a80, 0.7));
   const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(-1, 0.5, 0.9); scene.add(sun);
 
-  // Deep background stars + the spiral galaxy.
-  const bgStars = buildBackgroundStars(2200, 600, 1400); scene.add(bgStars);
+  // Layered background stars (two shells → parallax depth) + the spiral galaxy.
+  const bgStars = buildBackgroundStars(2600, 620, 1500); scene.add(bgStars);
+  const bgStars2 = buildBackgroundStars(1500, 300, 600); bgStars2.material.opacity = 0.7; scene.add(bgStars2);
   const galaxy = buildSpiralGalaxy(accentA, accentB);
   galaxy.rotation.x = -0.92; scene.add(galaxy);
 
@@ -440,7 +442,7 @@ window.startLoadingGalaxy = function startLoadingGalaxy(canvas, opts) {
       if (p >= 1) { s.active = false; s.sp.material.opacity = 0; s.next = 3000 + Math.random() * 5000; }
     });
 
-    let camAng = el * 0.045;   // slow cinematic orbit
+    let camAng = el * 0.03;    // slow cinematic orbit
     if (zoom) {
       const p = Math.min(1, (now - zoom.start) / zoom.dur);
       const e = p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p+2, 3)/2;  // easeInOutCubic
@@ -452,7 +454,10 @@ window.startLoadingGalaxy = function startLoadingGalaxy(canvas, opts) {
     }
     camera.position.set(Math.cos(camAng) * camR, camY, Math.sin(camAng) * camR);
     camera.lookAt(0, 0, 0);
+    // Gently breathing galaxy core for a touch of life.
+    const corePulse = 60 * (1 + 0.08 * Math.sin(el * 0.9));
     coreSprite.position.set(0, 0, 0);
+    coreSprite.scale.set(corePulse, corePulse, 1);
     renderer.render(scene, camera);
     raf = requestAnimationFrame(frame);
   }
@@ -468,6 +473,118 @@ window.startLoadingGalaxy = function startLoadingGalaxy(canvas, opts) {
         renderer.dispose();
       } catch (e) {}
     },
+  };
+};
+
+// ════════════════════════════════════════════════════════════════════
+// MARKET GLOBE — a rotating Earth for the Overview tab with glowing markers
+// at each global exchange. Returns { stop, setData(indices), onFront(cb) }.
+// ════════════════════════════════════════════════════════════════════
+function latLonToVec3(lat, lon, r) {
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = (lon + 180) * Math.PI / 180;
+  return new THREE.Vector3(
+    -r * Math.sin(phi) * Math.cos(theta),
+     r * Math.cos(phi),
+     r * Math.sin(phi) * Math.sin(theta)
+  );
+}
+
+window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
+  opts = opts || {};
+  if (!THREE) return { stop(){}, setData(){}, onFront(){} };
+  markets = markets || [];
+  const accentA = opts.accentA || '#8b5cf6', accentB = opts.accentB || '#22d3ee';
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
+  camera.position.set(0, 14, 290);
+  camera.lookAt(0, 0, 0);
+
+  scene.add(new THREE.AmbientLight(0x5a6aa0, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.25); sun.position.set(-0.7, 0.45, 1); scene.add(sun);
+
+  const R = 92;
+  const earthGroup = new THREE.Group(); earthGroup.rotation.z = 0.18; scene.add(earthGroup);
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 64), new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), roughness: 1, metalness: 0 }));
+  earthGroup.add(earth);
+  // graticule wireframe for a "data globe" feel
+  const grid = new THREE.Mesh(new THREE.SphereGeometry(R * 1.004, 36, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), wireframe: true, transparent: true, opacity: 0.06, depthWrite: false }));
+  earthGroup.add(grid);
+  // atmosphere + soft glow
+  const atmo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.07, 48, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.15, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  scene.add(atmo);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(accentB), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(R * 3.6, R * 3.6, 1); scene.add(glow);
+  // faint backdrop stars
+  const bg = buildBackgroundStars(700, 320, 760); scene.add(bg);
+
+  // markers parented to the earth group so they spin with the globe
+  const markerMap = {};
+  markets.forEach((m) => {
+    const pos = latLonToVec3(m.lat, m.lon, R * 1.015);
+    const normal = pos.clone().normalize();
+    const grp = new THREE.Group();
+    const dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(accentB), transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    dot.scale.set(13, 13, 1); dot.position.copy(pos); grp.add(dot);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, R * 0.16, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+    beam.position.copy(normal.clone().multiplyScalar(R * 1.08));
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    grp.add(beam);
+    earthGroup.add(grp);
+    markerMap[m.id] = { dot, beam, lx: pos.x, lz: pos.z, base: 13 };
+  });
+
+  const size = () => {
+    const w = canvas.clientWidth || canvas.parentElement?.clientWidth || 320;
+    const h = canvas.clientHeight || 320;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  };
+  size();
+  requestAnimationFrame(size); setTimeout(size, 200); setTimeout(size, 700);
+  window.addEventListener('resize', size);
+  let ro = null;
+  if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(size); try { ro.observe(canvas); } catch (e) {} }
+
+  let raf = 0, t0 = performance.now(), frontId = null, frontCb = null;
+  function frame() {
+    const el = (performance.now() - t0) * 0.001;
+    const ry = el * 0.16;
+    earthGroup.rotation.y = ry;
+    // front-most marker (max world-z after Y rotation) — pulse + report it
+    let best = null, bestZ = -Infinity;
+    for (const id in markerMap) {
+      const mk = markerMap[id];
+      const wz = -mk.lx * Math.sin(ry) + mk.lz * Math.cos(ry);
+      if (wz > bestZ) { bestZ = wz; best = id; }
+      const tw = 0.8 + 0.25 * Math.sin(el * 3 + mk.lx);
+      mk.dot.scale.set(mk.base * tw, mk.base * tw, 1);
+    }
+    if (best && best !== frontId) { frontId = best; if (frontCb) frontCb(frontId); }
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
+
+  return {
+    stop() {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('resize', size);
+      if (ro) { try { ro.disconnect(); } catch (e) {} }
+      try { scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); try { renderer.forceContextLoss(); } catch(fe){} renderer.dispose(); } catch (e) {}
+    },
+    setData(indices) {
+      indices = indices || {};
+      for (const id in markerMap) {
+        const d = indices[id];
+        const c = !d ? accentB : (d.chgPct >= 0 ? '#34d399' : '#fb7185');
+        markerMap[id].dot.material.color.set(c);
+        markerMap[id].beam.material.color.set(c);
+      }
+    },
+    onFront(cb) { frontCb = cb; if (frontId) cb(frontId); },
   };
 };
 

@@ -589,6 +589,10 @@ const GT_ANIM_CSS = `
 .gt-app-enter { animation: gtAppEnter .9s cubic-bezier(.2,.7,.3,1) both; }
 @keyframes gtAppEnter { from { opacity: 0; transform: scale(1.035); } to { opacity: 1; transform: none; } }
 
+/* Skeleton shimmer for index values awaiting their first live fetch. */
+@keyframes gtShimmer { 0%,100% { opacity: .3; } 50% { opacity: .7; } }
+.gt-idx-skel { animation: gtShimmer 1.25s ease-in-out infinite; }
+
 /* ════════ Rich Financials / section transitions ════════ */
 @keyframes gtSlideFadeR { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes gtSlideFadeL { from { opacity: 0; transform: translateX(-34px); } to { opacity: 1; transform: translateX(0); } }
@@ -638,6 +642,9 @@ const GT_ANIM_CSS = `
   .gt-scenarios-3 { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .gt-scenarios-3 > * { flex: 0 0 78% !important; border-right: 1px dashed rgba(255,255,255,.08) !important; }
   .gt-scenarios-3 .gt-scn-px { font-size: 40px !important; }
+  /* Global market globe stacks: Earth on top, index list below */
+  .gt-globe-wrap { grid-template-columns: 1fr !important; }
+  .gt-globe-canvas { min-height: 280px !important; }
 }
 
 @media (max-width: 380px) {

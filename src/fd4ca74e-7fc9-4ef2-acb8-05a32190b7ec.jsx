@@ -692,6 +692,103 @@ function StockOverviewCard({sym,active,onClick}){
   );
 }
 
+// ── Global market globe — rotating 3D Earth + live world index board ──
+function fmtIdx(v){
+  if(v==null) return '—';
+  return v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function GlobalMarketGlobe(){
+  const {palette,headline}=useTheme();
+  const canvasRef=dsUseRef(null);
+  const ctrlRef=dsUseRef(null);
+  const markets=(typeof window!=='undefined'&&window.MARKET_INDICES)||[];
+  const [data,setData]=dsUseState(()=>({...(typeof window!=='undefined'&&window.LIVE&&window.LIVE.indices)||{}}));
+  const [front,setFront]=dsUseState(null);
+
+  dsUseEffect(()=>{
+    const canvas=canvasRef.current;
+    let cleanupReady=null;
+    const begin=()=>{
+      if(!window.startMarketGlobe||!canvas) return false;
+      const ctrl=window.startMarketGlobe(canvas, markets, {accentA:palette.a, accentB:palette.b});
+      ctrlRef.current=ctrl;
+      ctrl.onFront(id=>setFront(id));
+      ctrl.setData((window.LIVE&&window.LIVE.indices)||{});
+      return true;
+    };
+    if(!begin()){
+      const onReady=()=>begin();
+      window.addEventListener('__galaxyReady',onReady);
+      cleanupReady=()=>window.removeEventListener('__galaxyReady',onReady);
+    }
+    const onIdx=()=>{
+      const d={...(window.LIVE&&window.LIVE.indices)||{}};
+      setData(d);
+      if(ctrlRef.current) ctrlRef.current.setData(d);
+    };
+    window.addEventListener('idx-tick',onIdx);
+    return ()=>{
+      cleanupReady&&cleanupReady();
+      window.removeEventListener('idx-tick',onIdx);
+      if(ctrlRef.current) try{ctrlRef.current.stop();}catch(e){}
+    };
+  },[palette.a,palette.b]);
+
+  const anyData=Object.keys(data).length>0;
+  const frontM=markets.find(m=>m.id===front);
+  const frontD=front?data[front]:null;
+
+  return(
+    <Panel kicker="Global markets · live" title="World index board" accent={palette.b}
+      right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:anyData?GT.green:GT.amber}}>
+        <span style={{width:5,height:5,borderRadius:'50%',background:anyData?GT.green:GT.amber,boxShadow:anyData?`0 0 6px ${GT.green}`:'none'}}/>{anyData?'LIVE':'CONNECTING'}</span>}>
+      <div className="gt-globe-wrap" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'stretch'}}>
+        {/* 3D globe — fixed-height canvas so it never collapses on flex/grid items */}
+        <div className="gt-globe-canvas" style={{position:'relative',height:340}}>
+          <canvas ref={canvasRef} style={{width:'100%',height:340,display:'block'}}/>
+          {/* floating callout for the front-facing market */}
+          {frontM&&(
+            <div style={{position:'absolute',left:12,bottom:12,padding:'9px 13px',background:'rgba(10,14,28,.72)',backdropFilter:'blur(10px)',border:`1px solid ${palette.edge}`,borderLeft:`3px solid ${frontD?(frontD.chgPct>=0?GT.green:GT.red):palette.b}`,borderRadius:6,pointerEvents:'none'}}>
+              <div style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,letterSpacing:1.2}}>{frontM.flag} {frontM.city.toUpperCase()}</div>
+              <div style={{fontFamily:headline,fontSize:18,color:GT.text,letterSpacing:-0.3,marginTop:2}}>{frontM.name}</div>
+              {frontD&&<div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:3}}>
+                <span style={{fontFamily:GT.fontMono,fontSize:14,color:GT.text,fontWeight:700}}>{fmtIdx(frontD.price)}</span>
+                <span style={{fontFamily:GT.fontMono,fontSize:11,color:frontD.chgPct>=0?GT.green:GT.red,fontWeight:700}}>{frontD.chgPct>=0?'▲ +':'▼ '}{Math.abs(frontD.chgPct).toFixed(2)}%</span>
+              </div>}
+            </div>
+          )}
+        </div>
+        {/* Live index list */}
+        <div className="gt-globe-list" style={{display:'flex',flexDirection:'column',justifyContent:'center'}}>
+          {markets.map((m,i)=>{
+            const d=data[m.id];
+            const up=d?d.chgPct>=0:true;
+            const c=d?(up?GT.green:GT.red):GT.textDim;
+            const isFront=front===m.id;
+            return(
+              <div key={m.id} style={{
+                display:'grid',gridTemplateColumns:'auto 1fr auto',gap:10,alignItems:'center',
+                padding:'8px 10px',borderBottom:i<markets.length-1?`1px dashed ${palette.edge}`:'none',
+                background:isFront?palette.aSoft:'transparent',borderRadius:isFront?5:0,transition:'background .3s',
+              }}>
+                <span style={{fontSize:15,lineHeight:1}}>{m.flag}</span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontFamily:GT.fontMono,fontSize:11.5,color:GT.text,fontWeight:700,letterSpacing:0.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
+                  <div style={{fontFamily:GT.fontMono,fontSize:8.5,color:GT.textDim,letterSpacing:0.8}}>{m.city.toUpperCase()}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div className={d?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:11.5,color:GT.text,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{d?fmtIdx(d.price):'————'}</div>
+                  <div className={d?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:9.5,color:c,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{d?`${up?'+':''}${d.chgPct.toFixed(2)}%`:'··· %'}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function TabOverview({t,sym,setSym}){
   const {palette,headline,density}=useTheme();
   return(
@@ -705,6 +802,9 @@ function TabOverview({t,sym,setSym}){
           ))}
         </div>
       </Panel>
+
+      {/* Global market globe — live world indices on a rotating 3D Earth */}
+      <GlobalMarketGlobe/>
 
       {/* Current stock KPIs */}
       <KpiStrip t={t}/>
