@@ -699,7 +699,7 @@ function TabOverview({t,sym,setSym}){
       {/* 4-stock comparison */}
       <Panel kicker="Market overview · AI chip basket" title="All 4 positions at a glance" accent={palette.a}
         right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:GT.green}}><span style={{width:5,height:5,borderRadius:'50%',background:GT.green,display:'inline-block'}}/>LIVE</span>}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:18}}>
+        <div className="gt-overview-cards" style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:18}}>
           {ORDER.map(s=>(
             <StockOverviewCard key={s} sym={s} active={sym===s} onClick={()=>setSym(s)}/>
           ))}
@@ -722,7 +722,7 @@ function TabOverview({t,sym,setSym}){
         <div style={{fontFamily:headline,fontSize:26,fontWeight:400,lineHeight:1.3,letterSpacing:-0.3,color:GT.text,maxWidth:800}}>
           {t.one_liner}
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:0,marginTop:18,borderTop:`1px dashed ${palette.edge}`,paddingTop:14}}>
+        <div className="gt-thesis-stats" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:0,marginTop:18,borderTop:`1px dashed ${palette.edge}`,paddingTop:14}}>
           {[
             ['Sector',t.sector],
             ['Analysts',`${t.analysts} covering`],
@@ -739,7 +739,7 @@ function TabOverview({t,sym,setSym}){
       {/* Segments + financials */}
       <div className="gt-cols-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:density.gap}}>
         <Panel kicker="Segment mix" title={`${t.sym} · Q1 FY26 revenue`} accent={palette.b}>
-          <div style={{display:'flex',alignItems:'center',gap:18}}>
+          <div className="gt-seg-row" style={{display:'flex',alignItems:'center',gap:18}}>
             <Donut segments={t.segments} size={160}/>
             <div style={{flex:1,minWidth:0}}>
               {t.segments.map((s,i)=>(
@@ -2172,7 +2172,7 @@ function TabDeepDive({t}){
       </div>
 
       {/* Two-column: nav + content */}
-      <div style={{display:'grid',gridTemplateColumns:'200px 1fr',gap:0,border:`1px solid ${palette.edge}`,background:GT.glass,backdropFilter:'blur(20px)'}}>
+      <div className="gt-dd-layout" style={{display:'grid',gridTemplateColumns:'200px 1fr',gap:0,border:`1px solid ${palette.edge}`,background:GT.glass,backdropFilter:'blur(20px)'}}>
         {/* Left nav */}
         <div style={{borderRight:`1px solid ${palette.edge}`,paddingTop:6,paddingBottom:6}}>
           <div style={{fontFamily:GT.fontMono,fontSize:8,color:GT.textVeryDim,letterSpacing:1.5,padding:'8px 14px 6px'}}>// SECTIONS</div>
@@ -2539,17 +2539,19 @@ function TabRisk({t}){
   return(
     <div style={{display:'flex',flexDirection:'column',gap:density.gap}}>
       <Panel kicker="12-month scenarios" title={`${t.sym} · probability-weighted`} accent={palette.a}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:0}}>
+        <div className="gt-scenarios-3" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:0}}>
           {t.scenarios.map((s,i)=>{
             const c=s.label==='BULL'?GT.green:s.label==='BEAR'?GT.red:palette.a;
+            const dynChg=(t.px&&s.px)?((s.px/t.px-1)*100):null;
+            const chgTxt=dynChg!=null?`${dynChg>=0?'+':''}${dynChg.toFixed(0)}%`:(s.chg||'');
             return(
               <div key={i} style={{padding:'22px 24px',borderRight:i<2?`1px dashed ${palette.edge}`:'none'}}>
                 <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:12}}>
                   <span style={{fontFamily:GT.fontMono,fontSize:11,fontWeight:700,color:c,letterSpacing:1.4,padding:'3px 9px',border:`1px solid ${c}`,borderRadius:100}}>{s.label}</span>
                   <span style={{fontFamily:GT.fontMono,fontSize:10,color:GT.textDim}}>P = {s.prob}%</span>
                 </div>
-                <div style={{fontFamily:headline,fontSize:52,color:GT.text,lineHeight:1,letterSpacing:-2,marginBottom:6}}>${s.px}</div>
-                <div style={{fontFamily:GT.fontMono,fontSize:13,color:c,fontWeight:700,marginBottom:12}}>{s.chg}</div>
+                <div className="gt-scn-px" style={{fontFamily:headline,fontSize:52,color:GT.text,lineHeight:1,letterSpacing:-2,marginBottom:6}}>${s.px}</div>
+                <div style={{fontFamily:GT.fontMono,fontSize:13,color:c,fontWeight:700,marginBottom:12}}>{chgTxt}</div>
                 <div style={{fontSize:12,color:GT.textDim,lineHeight:1.5}}>{s.drivers}</div>
                 <div style={{marginTop:12,height:3,background:palette.edge,borderRadius:100}}>
                   <div style={{width:s.prob+'%',height:'100%',background:c,borderRadius:100}}/>

@@ -622,6 +622,26 @@ const GT_ANIM_CSS = `
   /* Generic 2-col → 1-col safety net for moat etc. */
   .gt-moat-grid { grid-template-columns: 1fr !important; }
   .gt-moat-grid > * { border-right: none !important; }
+
+  /* Overview 4 ticker cards → 2×2 so symbol + price never overlap */
+  .gt-overview-cards { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
+  /* Thesis stat strip (Sector / Analysts / 12M target) → stack, no clipping */
+  .gt-thesis-stats { grid-template-columns: 1fr !important; gap: 0 !important; }
+  .gt-thesis-stats > * { border-right: none !important; border-bottom: 1px dashed rgba(255,255,255,.08); padding: 8px 0 !important; }
+  .gt-thesis-stats > *:last-child { border-bottom: none; }
+  /* Deep Dive nav + content → stack; nav becomes a horizontal scroll strip */
+  .gt-dd-layout { grid-template-columns: 1fr !important; }
+  .gt-dd-layout > div:first-child { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .gt-dd-layout > div:first-child > div:first-child { display: none; } /* hide "// SECTIONS" label inline */
+  .gt-dd-nav-item { flex: 0 0 auto !important; }
+  /* Risk / scenario 3-col → horizontal scroll, no cut-off */
+  .gt-scenarios-3 { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .gt-scenarios-3 > * { flex: 0 0 78% !important; border-right: 1px dashed rgba(255,255,255,.08) !important; }
+  .gt-scenarios-3 .gt-scn-px { font-size: 40px !important; }
+}
+
+@media (max-width: 380px) {
+  .gt-overview-cards { grid-template-columns: 1fr !important; }
 }
 `;
 
