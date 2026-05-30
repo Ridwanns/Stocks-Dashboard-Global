@@ -112,3 +112,10 @@ with open(OUT_HTML, 'w', encoding='utf-8') as f:
     f.write(new_html)
 print(f'Rebundled {swapped} entries (+ {added} new) -> {OUT_HTML}')
 print(f'File size: {os.path.getsize(OUT_HTML):,} bytes')
+
+# Also emit index.html as a byte-identical copy so GitHub Pages / any static
+# host serves the full app at "/" directly — no redirect page, no extra flash.
+INDEX_HTML = os.path.join(ROOT, 'index.html')
+with open(INDEX_HTML, 'w', encoding='utf-8') as f:
+    f.write(new_html)
+print(f'Wrote index.html (direct entry, no redirect) -> {INDEX_HTML}')
