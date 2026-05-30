@@ -347,36 +347,59 @@ window.startLoadingGalaxy = function startLoadingGalaxy(canvas, opts) {
   const coreSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color('#fff0d0'), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
   coreSprite.scale.set(60, 60, 1); scene.add(coreSprite);
 
-  // ── Earth + Moon system, off to one side ──
-  const planetSys = new THREE.Group(); planetSys.position.set(-185, 38, 30); scene.add(planetSys);
-  const earth = new THREE.Mesh(new THREE.SphereGeometry(30, 48, 48), new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), roughness: 1, metalness: 0 }));
-  earth.rotation.z = 0.32; planetSys.add(earth);
-  // atmosphere rim glow (back-side larger sphere)
-  const atmo = new THREE.Mesh(new THREE.SphereGeometry(33, 36, 36), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.16, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  // ── Earth — STATIONARY centrepiece, clearly separated from the galaxy ──
+  const planetSys = new THREE.Group(); planetSys.position.set(-186, 30, -24); scene.add(planetSys);
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(34, 56, 56), new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), roughness: 1, metalness: 0 }));
+  earth.rotation.z = 0.36; planetSys.add(earth);            // fixed tilt, no spin
+  const atmo = new THREE.Mesh(new THREE.SphereGeometry(37, 40, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.17, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
   planetSys.add(atmo);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(accentB), transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
-  glow.scale.set(110, 110, 1); planetSys.add(glow);
-  const moon = new THREE.Mesh(new THREE.SphereGeometry(7.5, 28, 28), new THREE.MeshStandardMaterial({ map: makePlanetTexture('moon'), roughness: 1, metalness: 0 }));
-  planetSys.add(moon);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(accentB), transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(104, 104, 1); planetSys.add(glow);
 
-  // ── Nebula clouds (soft colored backdrop) ──
+  // Tilted orbit plane around Earth: faint ring + moon + bright orbiting sparks.
+  const orbit = new THREE.Group(); orbit.rotation.set(1.12, 0, 0.24); planetSys.add(orbit);
+  const ORBIT_R = 64;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(ORBIT_R, 0.22, 8, 128), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }));
+  orbit.add(ring);
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 28, 28), new THREE.MeshStandardMaterial({ map: makePlanetTexture('moon'), roughness: 1, metalness: 0 }));
+  orbit.add(moon);
+  // bright sparks circling Earth alongside the moon ("ada yg mengitari")
+  const orbiters = [];
+  [[ORBIT_R, 0, '#ffffff', 5.0], [ORBIT_R, 2.3, accentB, 4.2], [ORBIT_R, 4.4, '#fff0d0', 5.6], [46, 1.1, accentA, 3.6]].forEach(([r, ph, col, sz]) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(col), transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.scale.set(sz, sz, 1); orbit.add(sp); orbiters.push({ sp, r, ph, base: sz });
+  });
+
+  // ── Twinkling spark layer scattered through the void ──
+  const sparks = [];
+  const srng = mulberry(2027);
+  for (let i = 0; i < 48; i++) {
+    const col = ['#ffffff', accentA, accentB, '#fff0d0'][Math.floor(srng() * 4)];
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(col), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const rad = 150 + srng() * 360, u = srng() * 2 - 1, th = srng() * Math.PI * 2, sx = Math.sqrt(1 - u * u);
+    sp.position.set(Math.cos(th) * sx * rad, u * rad * 0.7, Math.sin(th) * sx * rad);
+    const base = 3 + srng() * 5; sp.scale.set(base, base, 1);
+    scene.add(sp); sparks.push({ sp, base, phase: srng() * Math.PI * 2, speed: 1.3 + srng() * 2.4 });
+  }
+
+  // ── Nebula clouds (soft, atmospheric — pushed far back) ──
   const nebula = [];
-  [[accentA, -260, 120, -320, 520], [accentB, 320, -90, -380, 460], ['#f472b6', -60, -160, -300, 360]].forEach(([col, x, y, z, sc]) => {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(col), transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false }));
+  [[accentA, -320, 160, -460, 560], [accentB, 380, -130, -500, 500], ['#f472b6', 60, -210, -400, 380]].forEach(([col, x, y, z, sc]) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color(col), transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false }));
     sp.position.set(x, y, z); sp.scale.set(sc, sc, 1); scene.add(sp); nebula.push(sp);
   });
 
-  // ── Shooting stars (periodic streaks) ──
+  // ── Shooting stars (rare + graceful) ──
   const shooters = [];
-  for (let i = 0; i < 3; i++) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color('#ffffff'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
-    scene.add(sp); shooters.push({ sp, active: false, next: 800 + i * 1400 + Math.random() * 2000, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1 });
+  for (let i = 0; i < 2; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeStarSprite(), color: new THREE.Color('#dbe6ff'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    scene.add(sp); shooters.push({ sp, active: false, next: 2800 + i * 3400 + Math.random() * 3000, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1 });
   }
-  function spawnShooter(s, now) {
-    s.active = true; s.life = 0; s.maxLife = 900 + Math.random() * 700;
-    s.x = -300 + Math.random() * 120; s.y = 120 + Math.random() * 160; s.z = -200 + Math.random() * 300;
-    s.vx = 0.42 + Math.random() * 0.3; s.vy = -(0.16 + Math.random() * 0.14); s.vz = (Math.random() - 0.5) * 0.1;
-    s.sp.scale.set(26, 2.4, 1);
+  function spawnShooter(s) {
+    s.active = true; s.life = 0; s.maxLife = 1700 + Math.random() * 900;
+    s.x = -340 + Math.random() * 120; s.y = 150 + Math.random() * 140; s.z = -160 + Math.random() * 240;
+    s.vx = 0.20 + Math.random() * 0.12; s.vy = -(0.07 + Math.random() * 0.05); s.vz = (Math.random() - 0.5) * 0.05;
+    s.sp.scale.set(22, 2, 1);
   }
 
   const size = () => { const w = window.innerWidth || 1, h = window.innerHeight || 1; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
@@ -385,34 +408,45 @@ window.startLoadingGalaxy = function startLoadingGalaxy(canvas, opts) {
 
   let raf = 0, t0 = performance.now(), last = t0;
   let zoom = null;            // { start, dur, cb }
-  let camR = 235, camY = 95;  // orbit radius / height
+  let camR = 262, camY = 86;  // orbit radius / height (pulled back, calmer)
   function frame() {
     const now = performance.now();
     const dt = Math.min(64, now - last); last = now;
     const el = (now - t0) * 0.001;
-    galaxy.rotation.y = el * 0.16;
-    bgStars.rotation.y = el * 0.012;
-    earth.rotation.y = el * 0.22;
-    // moon orbits the planet
-    const ma = el * 0.6; moon.position.set(Math.cos(ma) * 52, Math.sin(ma) * 10, Math.sin(ma) * 52);
-    nebula.forEach((nb, i) => { nb.material.rotation = el * (0.02 + i * 0.01); });
+    galaxy.rotation.y = el * 0.05;     // slow, calm
+    bgStars.rotation.y = el * 0.004;   // barely drifting
+    // Earth is stationary. Moon + sparks orbit it in the tilted ring plane.
+    const ma = el * 0.5;
+    moon.position.set(Math.cos(ma) * ORBIT_R, 0, Math.sin(ma) * ORBIT_R);
+    orbiters.forEach((o, i) => {
+      const a = ma * (0.8 + i * 0.16) + o.ph;
+      o.sp.position.set(Math.cos(a) * o.r, 0, Math.sin(a) * o.r);
+      const tw = 0.6 + 0.4 * Math.sin(el * 3.5 + o.ph); o.sp.scale.set(o.base * tw, o.base * tw, 1);
+    });
+    // twinkling spark layer
+    sparks.forEach((s) => {
+      const tw = 0.45 + 0.55 * Math.sin(el * s.speed + s.phase);
+      const sc = s.base * (0.5 + 0.6 * tw); s.sp.scale.set(sc, sc, 1);
+      s.sp.material.opacity = 0.3 + 0.65 * tw;
+    });
+    nebula.forEach((nb, i) => { nb.material.rotation = el * (0.008 + i * 0.005); });
     // shooting stars
     shooters.forEach((s) => {
-      if (!s.active) { s.next -= dt; if (s.next <= 0) { spawnShooter(s, now); } return; }
+      if (!s.active) { s.next -= dt; if (s.next <= 0) { spawnShooter(s); } return; }
       s.life += dt; const p = s.life / s.maxLife;
       s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
       s.sp.position.set(s.x, s.y, s.z);
-      s.sp.material.opacity = Math.sin(Math.min(1, p) * Math.PI) * 0.95;
-      if (p >= 1) { s.active = false; s.sp.material.opacity = 0; s.next = 1500 + Math.random() * 4000; }
+      s.sp.material.opacity = Math.sin(Math.min(1, p) * Math.PI) * 0.9;
+      if (p >= 1) { s.active = false; s.sp.material.opacity = 0; s.next = 3000 + Math.random() * 5000; }
     });
 
-    let camAng = el * 0.12;
+    let camAng = el * 0.045;   // slow cinematic orbit
     if (zoom) {
       const p = Math.min(1, (now - zoom.start) / zoom.dur);
       const e = p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p+2, 3)/2;  // easeInOutCubic
-      camR = 235 - e * 232;          // dolly toward the core
-      camY = 95  - e * 86;
-      galaxy.rotation.y += e * 2.2;   // spin up dramatically
+      camR = 262 - e * 258;          // dolly toward the core
+      camY = 86  - e * 78;
+      galaxy.rotation.y += e * 2.0;   // spin up on the way in
       canvas.style.opacity = String(1 - Math.max(0, (p - 0.72) / 0.28));
       if (p >= 1) { const cb = zoom.cb; zoom = null; cancelAnimationFrame(raf); raf = 0; cb && cb(); return; }
     }
