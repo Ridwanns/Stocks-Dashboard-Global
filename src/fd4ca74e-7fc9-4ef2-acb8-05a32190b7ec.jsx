@@ -197,12 +197,13 @@ window.fmtMcap=fmtMcap;
 
     /* ── Refactor: scenario progress bar (Bull/Base/Bear) ── */
     .gt-scn-bar {
-      height: 9px;
-      background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.07);
+      height: 12px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
       border-radius: 100px;
       position: relative;
       overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.35);
     }
     .gt-scn-bar-fill {
       position: absolute;
@@ -210,9 +211,15 @@ window.fmtMcap=fmtMcap;
       border-radius: 100px;
       transition: width .9s cubic-bezier(.4,0,.2,1);
     }
-    .gt-scn-bar-fill.bull { background: linear-gradient(90deg, rgba(52,211,153,.4), #34d399); box-shadow: 0 0 12px rgba(52,211,153,.55); }
-    .gt-scn-bar-fill.base { background: linear-gradient(90deg, rgba(34,211,238,.4), #22d3ee);  box-shadow: 0 0 12px rgba(34,211,238,.55); }
-    .gt-scn-bar-fill.bear { background: linear-gradient(90deg, rgba(251,113,133,.4), #fb7185); box-shadow: 0 0 12px rgba(251,113,133,.55); }
+    /* glossy top sheen → reads as a thick capsule, not a flat bar */
+    .gt-scn-bar-fill::after {
+      content: ''; position: absolute; left: 2px; right: 2px; top: 1px; height: 42%;
+      border-radius: 100px; background: linear-gradient(180deg, rgba(255,255,255,.4), transparent);
+    }
+    /* risk-based gradients: Bull = emerald, Base = indigo/blue, Bear = rose */
+    .gt-scn-bar-fill.bull { background: linear-gradient(90deg, rgba(16,185,129,.5), #34d399); box-shadow: 0 0 14px rgba(52,211,153,.6); }
+    .gt-scn-bar-fill.base { background: linear-gradient(90deg, rgba(99,102,241,.5), #818cf8);  box-shadow: 0 0 14px rgba(129,140,248,.55); }
+    .gt-scn-bar-fill.bear { background: linear-gradient(90deg, rgba(225,29,72,.5), #fb7185); box-shadow: 0 0 14px rgba(251,113,133,.6); }
 
     /* ── Hide benign cross-origin "Script error." sink (TradingView iframe) ── */
     #__bundler_err { display: none !important; }
@@ -378,27 +385,33 @@ function QuoteHead({t,tab,setTab}){
         {TABS.map((x)=>{
           const meta=TAB_META[x]||{group:'market'};
           const gc=GROUP_COLORS[meta.group]||palette.a;
+          const gcRgb=gc==='#8b5cf6'?'139,92,246':gc==='#22d3ee'?'34,211,238':'244,114,182';
           const active=tab===x;
-          // Inactive tab text: brighter, AA-compliant on starfield bg
+          // Inactive tab text: muted but WCAG-AA (≈9:1 on the deep-navy bg).
           const inactiveColor='rgba(226,232,240,.82)';
           const inactiveHover='#ffffff';
           return(
             <button key={x} onClick={()=>setTab(x)} style={{
               padding:'11px 18px 12px',display:'flex',alignItems:'center',
-              background:active?`rgba(${gc==='#8b5cf6'?'139,92,246':gc==='#22d3ee'?'34,211,238':'244,114,182'},.14)`:'transparent',
-              border:'none',
+              // Active = glassmorphic pill: white/translucent fill + backdrop blur
+              // + neon-glow underline (senior Module 1 spec).
+              background:active?`rgba(${gcRgb},.16)`:'transparent',
+              backdropFilter:active?'blur(12px) saturate(1.3)':'none',
+              WebkitBackdropFilter:active?'blur(12px) saturate(1.3)':'none',
+              border:active?`1px solid rgba(${gcRgb},.30)`:'1px solid transparent',
+              borderBottom:active?`2px solid ${gc}`:'2px solid transparent',
+              borderRadius:active?'9px 9px 0 0':'0',
               fontFamily:GT.fontMono,fontSize:10.5,fontWeight:active?700:600,
               letterSpacing:1.4,textTransform:'uppercase',
               color:active?gc:inactiveColor,
-              borderBottom:active?`2px solid ${gc}`:'2px solid transparent',
               marginBottom:-1,cursor:'pointer',
               transition:'all .18s ease',
               position:'relative',
               textShadow:active?`0 0 14px ${gc}, 0 0 26px ${gc}80`:'none',
-              boxShadow:active?`inset 0 -2px 0 0 ${gc}, 0 0 22px -10px ${gc}`:'none',
+              boxShadow:active?`inset 0 -2px 0 0 ${gc}, 0 0 26px -10px ${gc}`:'none',
             }}
-            onMouseEnter={e=>{if(!active){e.currentTarget.style.color=inactiveHover;e.currentTarget.style.background='rgba(255,255,255,.05)';}}}
-            onMouseLeave={e=>{if(!active){e.currentTarget.style.color=inactiveColor;e.currentTarget.style.background='transparent';}}}
+            onMouseEnter={e=>{if(!active){e.currentTarget.style.color=inactiveHover;e.currentTarget.style.background='rgba(255,255,255,.06)';e.currentTarget.style.borderRadius='9px 9px 0 0';}}}
+            onMouseLeave={e=>{if(!active){e.currentTarget.style.color=inactiveColor;e.currentTarget.style.background='transparent';e.currentTarget.style.borderRadius='0';}}}
             >
               {x}
               {active&&<span style={{position:'absolute',bottom:-1,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${gc},transparent)`,opacity:0.95,boxShadow:`0 0 10px ${gc}`}}/>}
@@ -418,7 +431,7 @@ function KpiStrip({t}){
     {l:'Revenue FY26',v:t.fundamentals.revFy,sub:t.fundamentals.revYoY,c:GT.green,accent:palette.a},
     {l:'Gross Margin',v:t.fundamentals.gm,sub:t.fundamentals.gmSub,c:GT.green,accent:palette.b},
     {l:'EPS FY26',v:t.fundamentals.eps,sub:t.fundamentals.epsYoY,c:GT.green,accent:'#f472b6'},
-    {l:'P/E Forward',v:t.fundamentals.pfwd,sub:'TTM '+t.fundamentals.petm,c:GT.amber,accent:palette.a},
+    {l:'P/E (NTM)',v:t.fundamentals.pfwd,sub:'TTM '+t.fundamentals.petm,c:GT.amber,accent:palette.a},
   ];
   return(
     <div className="gt-stagger gt-kpi-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
@@ -679,7 +692,7 @@ function StockOverviewCard({sym,active,onClick}){
         {[
           ['MCap',fmtMcap(tk.mcap)],
           ['Rating',tk.rating],
-          ['P/E Fwd',tk.fundamentals.pfwd],
+          ['P/E (NTM)',tk.fundamentals.pfwd],
           ['Upside',`+${tk.upside.toFixed(1)}%`],
         ].map(([l,v],i)=>(
           <div key={i} style={{borderTop:`1px dashed ${palette.edge}`,paddingTop:6}}>
@@ -1037,7 +1050,7 @@ function TabChart({t}){
               <div style={{display:'flex',gap:8,flexWrap:'wrap',padding:'8px 10px',marginTop:6,
                 background:'rgba(255,255,255,.02)',border:`1px dashed ${palette.edge}`}}>
                 <span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,letterSpacing:1}}>OVERLAY ▸</span>
-                {funds.pe&&<span style={{fontFamily:GT.fontMono,fontSize:10,color:'#22d3ee',fontWeight:700}}>P/E Fwd · {t.fundamentals.pfwd}</span>}
+                {funds.pe&&<span style={{fontFamily:GT.fontMono,fontSize:10,color:'#22d3ee',fontWeight:700}}>P/E (NTM) · {t.fundamentals.pfwd}</span>}
                 {funds.fcf&&<span style={{fontFamily:GT.fontMono,fontSize:10,color:GT.green,fontWeight:700}}>FCF margin · {t.fundamentals.gm}</span>}
                 {funds.eps&&<span style={{fontFamily:GT.fontMono,fontSize:10,color:'#f472b6',fontWeight:700}}>EPS · {t.fundamentals.eps}</span>}
                 {funds.rev&&<span style={{fontFamily:GT.fontMono,fontSize:10,color:GT.amber,fontWeight:700}}>Rev · {t.fundamentals.revFy}</span>}
@@ -1617,12 +1630,12 @@ function RevenueGrowthChart({data,accent,mode}){
               style={{filter:isLast?`drop-shadow(0 0 6px ${ac})`:'none'}}>
               {d.rev>=1000?(d.rev/1000).toFixed(1)+'B':d.rev.toFixed(1)}
             </text>
-            {/* Growth badge */}
+            {/* Growth badge — explicit period context (YoY for annual, QoQ for quarterly) */}
             {grow!=null&&<text x={revCx} y={baseY-rh-8} textAnchor="middle"
               fontSize={8.5} fontFamily={GT.fontMono} fill={growColor}
-              fontWeight={700} letterSpacing="0.5"
+              fontWeight={700} letterSpacing="0.4"
               style={{filter:`drop-shadow(0 0 4px ${growColor}88)`}}>
-              {grow>=0?'▲ +':'▼ '}{Math.abs(grow).toFixed(0)}%
+              {grow>=0?'▲+':'▼'}{Math.abs(grow).toFixed(0)}% {mode==='quarterly'?'QoQ':'YoY'}
             </text>}
             {/* NI value label — only when bar tall enough to show */}
             {d.ni>0&&nih>14&&<text x={niCx} y={baseY-nih-6} textAnchor="middle"
@@ -1631,11 +1644,11 @@ function RevenueGrowthChart({data,accent,mode}){
               {d.ni>=1000?(d.ni/1000).toFixed(1)+'B':d.ni.toFixed(1)}
             </text>}
 
-            {/* Period label — centered under the pair */}
+            {/* Period label — larger + brighter for analyst legibility (Module 2) */}
             <text x={cx} y={baseY+18} textAnchor="middle"
-              fontSize={9.5} fontFamily={GT.fontMono}
-              fill={isLast?'#eef0ff':'rgba(163,172,209,.85)'}
-              fontWeight={isLast?700:500} letterSpacing="0.8">{d.q}</text>
+              fontSize={11} fontFamily={GT.fontMono}
+              fill={isLast?'#eef0ff':'rgba(190,200,224,.92)'}
+              fontWeight={isLast?700:600} letterSpacing="0.6">{d.q}</text>
             {/* Margin tag */}
             {margin!=null&&<text x={cx} y={baseY+30} textAnchor="middle"
               fontSize={7.5} fontFamily={GT.fontMono} fill="rgba(199,186,255,.65)"
@@ -1966,8 +1979,8 @@ function TabFinancials({t}){
   const periods=view.periods||(dd&&dd.annual.periods)||[];
 
   const valCards=[
-    {key:'pfwd', label:'Fwd P/E',   value:t.fundamentals.pfwd,   percentile:50, pctLabel:'50th pct · fair',  color:palette.a},
-    {key:'petm', label:'P/E TTM',   value:t.fundamentals.petm,   percentile:85, pctLabel:'85th pct · rich',   color:GT.amber},
+    {key:'pfwd', label:'P/E (NTM)', value:t.fundamentals.pfwd,   percentile:50, pctLabel:'50th pct · fair',  color:palette.a},
+    {key:'petm', label:'P/E (TTM)', value:t.fundamentals.petm,   percentile:85, pctLabel:'85th pct · rich',   color:GT.amber},
     {key:'ps',   label:'P/S',       value:t.fundamentals.ps,     percentile:70, pctLabel:'70th pct · stretched',color:GT.amber},
     {key:'pb',   label:'P/B',       value:t.fundamentals.pb,     percentile:95, pctLabel:'95th pct · very rich',color:GT.red},
     {key:'ev',   label:'EV/EBITDA', value:t.fundamentals.evEbitda,percentile:60,pctLabel:'60th pct · moderate',color:GT.amber},
@@ -2761,7 +2774,7 @@ function DashRightRail({t}){
             ? (dynChgPct>=0?GT.green:GT.red)
             : c;
           return(
-            <div key={i} style={{display:'grid',gridTemplateColumns:'78px 1fr 60px 50px',gap:10,alignItems:'center',padding:'10px 0',borderBottom:i<t.scenarios.length-1?`1px dashed ${palette.edge}`:'none'}}>
+            <div key={i} style={{display:'grid',gridTemplateColumns:'78px 1fr 64px 48px',gap:11,alignItems:'center',padding:'14px 0',borderBottom:i<t.scenarios.length-1?`1px dashed ${palette.edge}`:'none'}}>
               <span style={{display:'inline-flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontWeight:700,color:c,letterSpacing:1,fontSize:10}}>
                 <span className={s.label==='BULL'?'gt-dot gt-dot-bull':s.label==='BEAR'?'gt-dot gt-dot-bear':'gt-dot gt-dot-neut'} style={{width:7,height:7}}/>
                 {s.label} {s.prob}%
