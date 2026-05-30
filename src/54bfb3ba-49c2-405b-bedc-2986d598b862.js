@@ -548,6 +548,63 @@ const GT_ANIM_CSS = `
   .gt-quote-px   { font-size: 24px !important; }
   .gt-kpi-grid   { grid-template-columns: 1fr !important; }
 }
+
+/* ════════ Cinematic 3D loading screen ════════ */
+.gt-loader {
+  position: fixed; inset: 0; z-index: 99999; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 45%, #0d1228 0%, #070a16 62%, #04060f 100%);
+  transition: opacity .5s ease;
+}
+.gt-loader[data-phase="zoom"] { pointer-events: none; }
+.gt-loader > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+.gt-loader-ui {
+  position: relative; z-index: 2; text-align: center; pointer-events: none;
+  animation: gtFadeUp .8s cubic-bezier(.22,.7,.3,1) both; padding: 0 24px;
+  transition: opacity .55s ease, transform .55s ease;
+}
+.gt-loader[data-phase="zoom"] .gt-loader-ui { opacity: 0; transform: scale(1.12); }
+.gt-loader-kicker { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #8b95b8; text-transform: uppercase; }
+.gt-loader-title { font-family: 'Instrument Serif', serif; font-size: clamp(34px, 8vw, 66px); color: #eef0ff; letter-spacing: -1.5px; line-height: 1; margin-top: 12px; }
+.gt-loader-bar { width: min(260px, 64vw); height: 2px; background: rgba(255,255,255,.1); margin: 24px auto 0; overflow: hidden; border-radius: 2px; }
+.gt-loader-bar > i { display: block; height: 100%; width: 42%; border-radius: 2px; background: linear-gradient(90deg, #8b5cf6, #22d3ee); animation: gtLoadSlide 1.15s cubic-bezier(.5,0,.5,1) infinite; }
+@keyframes gtLoadSlide { 0% { transform: translateX(-130%); } 100% { transform: translateX(330%); } }
+.gt-loader-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2.5px; color: #6b7494; text-transform: uppercase; margin-top: 14px; }
+
+/* ════════ Rich Financials / section transitions ════════ */
+@keyframes gtSlideFadeR { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes gtSlideFadeL { from { opacity: 0; transform: translateX(-34px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes gtZoomFade  { from { opacity: 0; transform: scale(.965) translateY(14px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+/* keyed remount replays these; children also cascade */
+.gt-sec-zoom  > * { animation: gtZoomFade .5s cubic-bezier(.22,.8,.3,1) both; }
+.gt-sec-zoom  > *:nth-child(1) { animation-delay: 30ms; }
+.gt-sec-zoom  > *:nth-child(2) { animation-delay: 95ms; }
+.gt-sec-zoom  > *:nth-child(3) { animation-delay: 160ms; }
+.gt-sec-zoom  > *:nth-child(4) { animation-delay: 225ms; }
+.gt-sec-zoom  > *:nth-child(n+5) { animation-delay: 290ms; }
+.gt-slide-r { animation: gtSlideFadeR .46s cubic-bezier(.22,.8,.3,1) both; }
+.gt-slide-l { animation: gtSlideFadeL .46s cubic-bezier(.22,.8,.3,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gt-sec-zoom > *, .gt-slide-r, .gt-slide-l, .gt-loader-ui { animation: none !important; opacity: 1 !important; transform: none !important; }
+}
+
+/* ════════ Extra mobile hardening ════════ */
+@media (max-width: 760px) {
+  /* Charts & SVGs never exceed the viewport */
+  svg { max-width: 100%; }
+  /* Statement tables get a horizontal scroll affordance instead of breaking */
+  .gt-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .gt-table-scroll > table { min-width: 480px; }
+  /* Financial section sub-nav scrolls horizontally */
+  .gt-fin-sections { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .gt-fin-sections > button { flex: 0 0 auto !important; white-space: nowrap; }
+  /* Donut / segment rows stack */
+  .gt-seg-row { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; }
+  /* Generic 2-col → 1-col safety net for moat etc. */
+  .gt-moat-grid { grid-template-columns: 1fr !important; }
+  .gt-moat-grid > * { border-right: none !important; }
+}
 `;
 
 function GTAnimStyle() {

@@ -462,7 +462,7 @@ function TabQuant({ t }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap }}>
 
       {/* ── Row 1: DCF + Multiples ────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+      <div className="gt-cols-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
 
         <Panel kicker={`DCF model · ${t.sym}`} title="2-Stage FCFF valuation" right="10Y horizon" accent={palette.a}>
           <QSection title="Key assumptions">
@@ -494,7 +494,7 @@ function TabQuant({ t }) {
       </div>
 
       {/* ── Row 2: Monte Carlo + Regression ──────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+      <div className="gt-cols-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
 
         <Panel kicker="Monte Carlo simulation" title="GBM · 10,000 paths · 12M forward" accent="#f472b6">
           <QSection title="Parameters">
@@ -529,7 +529,7 @@ function TabQuant({ t }) {
       </div>
 
       {/* ── Row 3: Factor Model + Volatility ─────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+      <div className="gt-cols-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
 
         <Panel kicker={`Factor model · ${t.sym}`} title="Multi-factor exposure scoring" accent="#a78bfa">
           <QSection title="Factor scores (0–100 percentile)">
@@ -567,7 +567,7 @@ function TabQuant({ t }) {
       </div>
 
       {/* ── Row 4: Kelly Criterion + Correlation + Earnings Quality ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+      <div className="gt-cols-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
 
         <Panel kicker={`Kelly criterion · ${t.sym}`} title="Optimal position sizing via Kelly formula" accent="#f59e0b">
           <QSection title="Kelly calculation">

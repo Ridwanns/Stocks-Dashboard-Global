@@ -498,12 +498,23 @@
     window.LIVE.feedStatus = 'STOPPED';
   }
 
-  // Auto-start after page renders
-  if (document.readyState === 'complete') {
-    setTimeout(startFeed, 3000);
+  // Auto-start on every page load/refresh — kick off quickly so the loading
+  // screen can hand off to fresh data, then poll on interval.
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(startFeed, 400);
   } else {
-    window.addEventListener('load', function(){ setTimeout(startFeed, 3000); });
+    window.addEventListener('DOMContentLoaded', function(){ setTimeout(startFeed, 400); });
   }
+
+  // Re-fetch immediately whenever the user returns to the tab (so data is
+  // never stale when they come back), throttled to once per 15s.
+  var _lastVis = 0;
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible' && Date.now() - _lastVis > 15000) {
+      _lastVis = Date.now();
+      fetchAll();
+    }
+  });
 
   // Expose API
   window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };

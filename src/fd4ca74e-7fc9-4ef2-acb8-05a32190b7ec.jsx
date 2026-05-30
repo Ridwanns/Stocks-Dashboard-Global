@@ -1213,6 +1213,56 @@ function TabTechnical({t}){
         ))}
       </Panel>
 
+      {/* Row 4.5: Moving-average trend structure */}
+      {(deep.ema20||deep.ema50||deep.ema200)&&(
+        <Panel kicker={`Moving Averages · ${t.sym}`} title="Trend structure" accent={palette.b}
+          right={<span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,letterSpacing:1}}>price vs EMA ladder</span>}>
+          {(()=>{
+            const mas=[
+              {l:'EMA 20', v:deep.ema20, span:'short'},
+              {l:'EMA 50', v:deep.ema50, span:'mid'},
+              {l:'EMA 200',v:deep.ema200,span:'long'},
+              {l:'VWAP 20D',v:deep.vwap, span:'flow'},
+            ].filter(m=>typeof m.v==='number'&&m.v>0);
+            if(!mas.length) return <div style={{fontFamily:GT.fontMono,fontSize:11,color:GT.textDim,padding:10}}>Loading live data…</div>;
+            const above=mas.filter(m=>t.px>=m.v).length;
+            const verdict=above===mas.length?'STRONG UPTREND':above===0?'STRONG DOWNTREND':above>=Math.ceil(mas.length/2)?'UPTREND BIAS':'DOWNTREND BIAS';
+            const vc=above===mas.length?GT.green:above===0?GT.red:above>=Math.ceil(mas.length/2)?GT.green:GT.amber;
+            const cross=(deep.ema50&&deep.ema200)?(deep.ema50>=deep.ema200?{t:'GOLDEN CROSS',d:'EMA50 ≥ EMA200 — bullish regime',c:GT.green}:{t:'DEATH CROSS',d:'EMA50 < EMA200 — bearish regime',c:GT.red}):null;
+            return(
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+                  <div style={{fontFamily:headline,fontSize:22,color:vc,letterSpacing:-0.4}}>{verdict}</div>
+                  <div style={{fontFamily:GT.fontMono,fontSize:10,color:GT.textDim,letterSpacing:0.5}}>
+                    price above <span style={{color:vc,fontWeight:700}}>{above}/{mas.length}</span> averages
+                  </div>
+                  {cross&&<div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8,padding:'5px 12px',background:`${cross.c}14`,border:`1px solid ${cross.c}40`,borderRadius:100}}>
+                    <span style={{fontFamily:GT.fontMono,fontSize:9.5,fontWeight:700,letterSpacing:1,color:cross.c}}>{cross.t}</span>
+                  </div>}
+                </div>
+                {cross&&<div style={{fontFamily:GT.fontMono,fontSize:10,color:GT.textDim}}>{cross.d}</div>}
+                <div style={{display:'grid',gridTemplateColumns:`repeat(${mas.length},1fr)`,gap:0,marginTop:2}}>
+                  {mas.map((m,i)=>{
+                    const dist=((t.px/m.v-1)*100);
+                    const isAbove=t.px>=m.v;
+                    return(
+                      <div key={i} style={{padding:'12px 12px',borderRight:i<mas.length-1?`1px dashed ${palette.edge}`:'none'}}>
+                        <div style={{fontFamily:GT.fontMono,fontSize:9,color:'rgba(160,172,200,.75)',letterSpacing:1,marginBottom:4}}>{m.l}</div>
+                        <div style={{fontFamily:headline,fontSize:19,color:GT.text,letterSpacing:-0.3}}>${m.v.toFixed(2)}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5,fontFamily:GT.fontMono,fontSize:10,fontWeight:700,color:isAbove?GT.green:GT.red}}>
+                          <span>{isAbove?'▲ ABOVE':'▼ BELOW'}</span>
+                          <span style={{opacity:0.85}}>{dist>=0?'+':''}{dist.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+        </Panel>
+      )}
+
       {/* Row 5: Technical Summary Score */}
       <Panel kicker={`Technical Score · ${t.sym}`} title="Composite signal strength" accent={palette.a}>
         {(()=>{
@@ -1721,7 +1771,7 @@ function yoyDelta(values){
 function StatementTableFin({rows,periods,palette,headline}){
   if(!rows||!rows.length) return<div style={{padding:18,color:GT.textDim,fontSize:12}}>No data for this period.</div>;
   return(
-    <div style={{overflowX:'auto'}}>
+    <div className="gt-table-scroll" style={{overflowX:'auto'}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontFamily:GT.fontMono,fontSize:11}}>
         <thead>
           <tr>
@@ -1801,12 +1851,12 @@ function TabFinancials({t}){
   return(
     <div style={{display:'flex',flexDirection:'column',gap:density.gap}}>
       {/* Section nav */}
-      <div style={{display:'flex',gap:0,background:GT.glass,backdropFilter:'blur(20px)',border:`1px solid ${palette.edge}`}}>
+      <div className="gt-fin-sections" style={{display:'flex',gap:0,background:GT.glass,backdropFilter:'blur(20px)',border:`1px solid ${palette.edge}`}}>
         {FIN_SECTIONS.map(s=>{
           const active=section===s.key;
           return(
             <button key={s.key} onClick={()=>setSection(s.key)} style={{
-              flex:1,padding:'10px 8px',display:'flex',alignItems:'center',justifyContent:'center',gap:4,
+              flex:1,minWidth:0,padding:'10px 8px',display:'flex',alignItems:'center',justifyContent:'center',gap:4,
               background:active?palette.aSoft:'transparent',border:'none',
               fontFamily:GT.fontMono,fontSize:9,fontWeight:600,letterSpacing:1,
               color:active?palette.a:GT.textDim,cursor:'pointer',
@@ -1821,19 +1871,32 @@ function TabFinancials({t}){
         })}
       </div>
 
-      {/* Annual/Quarterly toggle — visible for all statement sections */}
-      {(section==='income'||section==='balance'||section==='cashflow')&&(
+      {/* Annual/Quarterly toggle — only the income statement has real
+          quarterly filings. Balance Sheet & Cash Flow are annual-only, so we
+          show a static "Annual" label there instead of a toggle that lies. */}
+      {(section==='income'||section==='balance'||section==='cashflow')&&(()=>{
+        const hasQuarterly = section==='income' && dd && dd.quarterly && dd.quarterly.income && dd.quarterly.income.length;
+        return(
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          {[['annual','Annual'],['quarterly','Quarterly']].map(([k,l])=>(
+          {hasQuarterly ? [['annual','Annual'],['quarterly','Quarterly']].map(([k,l])=>(
             <button key={k} onClick={()=>setMode(k)} style={{
-              padding:'5px 12px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9,fontWeight:700,letterSpacing:1,
+              padding:'5px 14px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9.5,fontWeight:700,letterSpacing:1,
               background:mode===k?palette.a:'transparent',color:mode===k?'#0a0e1c':GT.text,
-              border:`1px solid ${mode===k?palette.a:palette.edge}`,cursor:'pointer',
+              border:`1px solid ${mode===k?palette.a:palette.edge}`,cursor:'pointer',transition:'all .18s',
+              boxShadow:mode===k?`0 0 14px -4px ${palette.a}`:'none',
             }}>{l}</button>
-          ))}
-          {dd&&<span style={{marginLeft:'auto',fontFamily:GT.fontMono,fontSize:9,color:GT.textDim}}>{dd.sourceNote}</span>}
+          )) : (
+            <span style={{padding:'5px 14px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9.5,fontWeight:700,letterSpacing:1,
+              background:palette.aSoft,color:palette.a,border:`1px solid ${palette.edge}`}}>Annual · audited</span>
+          )}
+          {dd&&<span style={{marginLeft:'auto',fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:'55%'}}>{dd.sourceNote}</span>}
         </div>
-      )}
+        );
+      })()}
+
+      {/* Keyed wrapper: remounts on section / annual-quarterly / ticker change,
+          replaying the zoom-fade cascade so every switch feels animated. */}
+      <div key={section+'-'+mode+'-'+t.sym} className="gt-sec-zoom" style={{display:'flex',flexDirection:'column',gap:density.gap}}>
 
       {/* Overview section */}
       {section==='overview'&&(
@@ -1843,7 +1906,7 @@ function TabFinancials({t}){
             <RevenueGrowthChartToggle quarterly={t.quarterly} annual={dd&&dd.annual} accent={palette.a}/>
           </Panel>
           <Panel kicker="Competitive moat" title="What we underwrite" accent="#f472b6">
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
+            <div className="gt-moat-grid" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
               {t.moat.map(([h,body],i)=>(
                 <div key={i} style={{padding:'18px 22px',borderRight:i%2===0?`1px dashed ${palette.edge}`:'none',borderBottom:i<2?`1px dashed ${palette.edge}`:'none'}}>
                   <div style={{fontFamily:headline,fontSize:16,color:GT.text,letterSpacing:-0.2,marginBottom:6}}>{h}</div>
@@ -1952,7 +2015,7 @@ function TabFinancials({t}){
       })()}
       {section==='segments'&&(
         <Panel kicker={`Segments · ${t.sym}`} title="Revenue mix" accent={palette.b}>
-          <div style={{display:'flex',alignItems:'center',gap:24}}>
+          <div className="gt-seg-row" style={{display:'flex',alignItems:'center',gap:24}}>
             <Donut segments={t.segments} size={180}/>
             <div style={{flex:1}}>
               {t.segments.map((s,i)=>(
@@ -1972,6 +2035,7 @@ function TabFinancials({t}){
           </div>
         </Panel>
       )}
+      </div>{/* /gt-sec-zoom keyed wrapper */}
     </div>
   );
 }

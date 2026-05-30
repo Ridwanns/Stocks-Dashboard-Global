@@ -11,8 +11,85 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "aurora": true
 }/*EDITMODE-END*/;
 
+// ── Cinematic 3D loading screen ───────────────────────────────────
+// Rotating spiral galaxy that holds until the live feed lands its first
+// tick (or a max timeout), then dollies through the core and fades to
+// reveal the dashboard already rendered behind it.
+function LoadingScreen({ onDone }) {
+  const canvasRef = React.useRef(null);
+  const ctrlRef = React.useRef(null);
+  const [phase, setPhase] = React.useState('loading');
+  const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    let cleanupReady = null;
+    const begin = () => {
+      if (!window.startLoadingGalaxy || !canvas) return false;
+      ctrlRef.current = window.startLoadingGalaxy(canvas, { accentA: '#8b5cf6', accentB: '#22d3ee' });
+      return true;
+    };
+    if (!begin()) {
+      const onReady = () => begin();
+      window.addEventListener('__galaxyReady', onReady);
+      cleanupReady = () => window.removeEventListener('__galaxyReady', onReady);
+    }
+
+    const t0 = Date.now();
+    const MIN_MS = reduced ? 350 : 2300;   // let the loop breathe
+    const MAX_MS = reduced ? 1200 : 6500;  // never hang
+    let finished = false;
+    const finish = () => {
+      if (finished) return; finished = true;
+      const wait = Math.max(0, MIN_MS - (Date.now() - t0));
+      setTimeout(() => {
+        setPhase('zoom');
+        const c = ctrlRef.current;
+        if (c && c.zoomIn && !reduced) {
+          c.zoomIn(1700, () => { try { c.stop(); } catch (e) {} onDone && onDone(); });
+        } else {
+          if (c) try { c.stop(); } catch (e) {}
+          onDone && onDone();
+        }
+      }, wait);
+    };
+
+    const onTick = () => finish();
+    window.addEventListener('live-tick', onTick);
+    const maxTimer = setTimeout(finish, MAX_MS);
+    if (window.LIVE && window.LIVE.feedStatus === 'LIVE') finish();
+
+    return () => {
+      cleanupReady && cleanupReady();
+      window.removeEventListener('live-tick', onTick);
+      clearTimeout(maxTimer);
+      const c = ctrlRef.current;
+      if (c) try { c.stop(); } catch (e) {}
+    };
+  }, []);
+
+  return (
+    <div className="gt-loader" data-phase={phase}>
+      <canvas ref={canvasRef} />
+      <div className="gt-loader-ui">
+        <div className="gt-loader-kicker">// RIDWAN · CHIP DESK</div>
+        <div className="gt-loader-title">AI chip stocks<span style={{ color: '#22d3ee' }}>.</span></div>
+        <div className="gt-loader-bar"><i /></div>
+        <div className="gt-loader-sub">Initializing live terminal</div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [booting, setBooting] = React.useState(true);
+
+  // Lock body scroll while the loader is on screen.
+  React.useEffect(() => {
+    document.body.style.overflow = booting ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [booting]);
 
   const theme = React.useMemo(() => ({
     palette: lookupPalette(t.palette),
@@ -30,6 +107,7 @@ function App() {
   return (
     <ThemeCtx.Provider value={theme}>
       <GTAnimStyle />
+      {booting && <LoadingScreen onDone={() => setBooting(false)} />}
       <Aurora />
       <Nav onTweaks={openTweaks} />
       <Hero />
