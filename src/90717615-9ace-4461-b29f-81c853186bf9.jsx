@@ -506,6 +506,18 @@ function About() {
   );
 }
 
+// ── Premium paywall HOC — blurs gated content + overlays an upsell badge ──
+function PremiumPaywall({ children, label }) {
+  return (
+    <div className="gt-paywall">
+      <div className="gt-paywall-content">{children}</div>
+      <div className="gt-paywall-overlay">
+        <span className="gt-paywall-badge">🔒 {label || 'Subscribe to unlock institutional valuation models'}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Past Memos Archive ────────────────────────────────────────────
 function PastMemosArchive({ palette, headline }) {
   const [expanded, setExpanded] = pgUseState(null);
@@ -613,16 +625,21 @@ function PastMemosArchive({ palette, headline }) {
                   <div style={{ fontSize: 13, color: 'rgba(148,163,184,.85)', lineHeight: 1.6, paddingTop: 2 }}>
                     {m.excerpt}
                   </div>
-                  <div style={{
-                    marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 6, borderTop: `1px dashed ${palette.edge}`, paddingTop: 12,
-                  }}>
-                    {[['BULL', m.bull, GT.green], ['BASE', m.base, palette.b], ['BEAR', m.bear, GT.red]].map(([sc, val, c]) => (
-                      <div key={sc}>
-                        <div style={{ fontFamily: GT.fontMono, fontSize: 9, color: c, letterSpacing: 1 }}>{sc}</div>
-                        <div style={{ fontFamily: GT.fontMono, fontSize: 11, color: GT.text, marginTop: 2 }}>{val}</div>
+                  <div style={{ marginTop: 12, borderTop: `1px dashed ${palette.edge}`, paddingTop: 12 }}>
+                    <div style={{ fontFamily: GT.fontMono, fontSize: 8.5, color: 'rgba(148,163,184,.6)', letterSpacing: 1, marginBottom: 7 }}>
+                      12M PRICE TARGETS · PROBABILITY-WEIGHTED
+                    </div>
+                    {/* Gated valuation targets behind the premium paywall */}
+                    <PremiumPaywall>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                        {[['BULL', m.bull, GT.green], ['BASE', m.base, palette.b], ['BEAR', m.bear, GT.red]].map(([sc, val, c]) => (
+                          <div key={sc}>
+                            <div style={{ fontFamily: GT.fontMono, fontSize: 9, color: c, letterSpacing: 1 }}>{sc}</div>
+                            <div style={{ fontFamily: GT.fontMono, fontSize: 11, color: GT.text, marginTop: 2 }}>{val}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </PremiumPaywall>
                   </div>
                 </div>
 
@@ -696,20 +713,15 @@ function Contact() {
                 Drops at 22:00 GMT+7. Free. Unsubscribe in one click. No spam, no upsells —
                 just the long memo and the dashboard refresh.
               </div>
-              <div className="gt-sub-input-row" style={{
-                marginTop: 20, display: 'flex', gap: 10,
-                border: `1px solid ${palette.edge}`, padding: 6, borderRadius: 100,
-                background: 'rgba(255,255,255,.02)',
-              }}>
-                <input placeholder="you@email.com" style={{
-                  flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                  color: GT.text, fontFamily: GT.fontUI, fontSize: 14, padding: '8px 14px',
-                }} />
-                <button style={{
-                  padding: '10px 22px', background: palette.a, color: '#fff', border: 'none',
-                  borderRadius: 100, fontFamily: GT.fontUI, fontSize: 13, fontWeight: 600,
-                  letterSpacing: 0.4, cursor: 'pointer',
-                }}>Subscribe →</button>
+              {/* Terminal-style input: zinc-900/40 field, neon focus ring,
+                  blinking cursor after the placeholder, inline high-contrast CTA. */}
+              <div className="gt-sub-terminal">
+                <span className="gt-sub-prompt">&gt;</span>
+                <div className="gt-sub-field">
+                  <input className="gt-sub-input" type="email" placeholder=" " aria-label="Email address" />
+                  <span className="gt-sub-ph">you@email.com<span className="gt-sub-caret">▋</span></span>
+                </div>
+                <button className="gt-sub-btn">SUBSCRIBE →</button>
               </div>
               <div style={{
                 marginTop: 18, fontFamily: GT.fontMono, fontSize: 10, color: 'rgba(148,163,184,.75)',

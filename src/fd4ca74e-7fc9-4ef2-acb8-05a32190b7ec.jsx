@@ -1532,21 +1532,29 @@ function annualToSeries(annual){
   if(!annual||!annual.periods||!annual.income) return [];
   const revRow=annual.income.find(r=>/^(revenue|net revenue)$/i.test(r.label.trim()));
   const niRow =annual.income.find(r=>/^net income/i.test(r.label.trim()));
+  const gmRow =annual.income.find(r=>/gross margin\s*%/i.test(r.label.trim()));  // efficiency overlay
   if(!revRow) return [];
+  const parsePct=(v)=> typeof v==='string' ? parseFloat(v.replace('%','')) : (typeof v==='number'?v:null);
   return annual.periods.map((p,i)=>({
     q: p.replace(/^FY20/,'FY').replace(/^FY/,'FY'), // 'FY2024' → 'FY24'
     rev: typeof revRow.v[i]==='number'?revRow.v[i]:0,
     ni:  niRow&&typeof niRow.v[i]==='number'?niRow.v[i]:0,
+    gm:  gmRow?parsePct(gmRow.v[i]):null,
   }));
 }
 
 function RevenueGrowthChart({data,accent,mode}){
   const {palette}=useTheme();
   const ac=accent||palette.a;
+  const [hover,setHover]=dsUseState(null);   // {i} for the custom tooltip
   // Pick dataset based on mode
   const series = (mode==='yearly') ? aggregateToYearly(data) : data;
   if(!series.length) return null;
   const maxR=Math.max(...series.map(d=>d.rev));
+  // Gross-margin overlay: present when the series carries a gm% (annual view).
+  const GM='#fbbf24';
+  const hasGM=series.some(d=>typeof d.gm==='number');
+  const gmY=(p)=>padT+(1-Math.max(0,Math.min(100,p))/100)*innerH;
   // padT bumped from 30 → 18 (legend moved out of SVG to an HTML strip);
   // the chart now has ALL vertical headroom for value+growth labels.
   const W=820, H=210, padL=40, padR=12, padB=44, padT=18;
@@ -1563,6 +1571,7 @@ function RevenueGrowthChart({data,accent,mode}){
   const revGradId='revGrad-'+uniq, niGradId='niGrad-'+uniq, glowId='glow-'+uniq;
 
   return(
+   <div style={{position:'relative'}}>
     <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{display:'block'}}>
       <defs>
         <linearGradient id={revGradId} x1="0" y1="0" x2="0" y2="1">
@@ -1674,7 +1683,50 @@ function RevenueGrowthChart({data,accent,mode}){
         );
       })}
 
+      {/* ── Gross-margin % efficiency overlay (Module 5) ── */}
+      {hasGM&&(()=>{
+        const pts=series.map((d,i)=>({x:padL+i*groupW+groupW/2,y:gmY(d.gm),gm:d.gm})).filter(p=>typeof p.gm==='number');
+        if(pts.length<2) return null;
+        const path=pts.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+        const lastP=pts[pts.length-1];
+        return(
+          <g>
+            <path d={path} fill="none" stroke={GM} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"
+              style={{filter:`drop-shadow(0 0 5px ${GM}aa)`}} opacity={0.92}/>
+            {pts.map((p,i)=>(<circle key={i} cx={p.x} cy={p.y} r={2.4} fill="#0a0e1c" stroke={GM} strokeWidth={1.4}/>))}
+            <text x={lastP.x+6} y={lastP.y-5} fontSize={9} fontFamily={GT.fontMono} fill={GM} fontWeight={700}
+              style={{filter:`drop-shadow(0 0 4px ${GM}88)`}}>GM {lastP.gm.toFixed(0)}%</text>
+          </g>
+        );
+      })()}
+
+      {/* Invisible hover zones → custom tooltip */}
+      {series.map((d,i)=>(
+        <rect key={'h'+i} x={padL+i*groupW} y={padT} width={groupW} height={innerH}
+          fill="transparent" style={{cursor:'pointer'}}
+          onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(h=>h===i?null:h)}/>
+      ))}
     </svg>
+    {/* Custom tooltip — dark, blurred, high-precision (Module 5) */}
+    {hover!=null&&series[hover]&&(()=>{
+      const d=series[hover];
+      const prev=hover>0?series[hover-1]:null;
+      const grow=prev&&prev.rev?((d.rev/prev.rev-1)*100):null;
+      const nm=d.ni&&d.rev?((d.ni/d.rev)*100):null;
+      const leftPct=Math.max(15,Math.min(85,((padL+hover*groupW+groupW/2)/W)*100));
+      const fmtB=(v)=>v>=1000?(v/1000).toFixed(2)+'B':v.toFixed(1)+'M';
+      return(
+        <div className="gt-chart-tip" style={{left:`${leftPct}%`}}>
+          <div className="gt-chart-tip-h">{d.q}</div>
+          <div className="gt-chart-tip-row"><span style={{color:ac}}>● Revenue</span><b>${fmtB(d.rev)}</b></div>
+          {d.ni!=null&&<div className="gt-chart-tip-row"><span style={{color:'#34d399'}}>● Net income</span><b>${fmtB(d.ni)}</b></div>}
+          {typeof d.gm==='number'&&<div className="gt-chart-tip-row"><span style={{color:GM}}>● Gross margin</span><b>{d.gm.toFixed(1)}%</b></div>}
+          {nm!=null&&<div className="gt-chart-tip-row"><span style={{color:'#c7baff'}}>● Net margin</span><b>{nm.toFixed(1)}%</b></div>}
+          {grow!=null&&<div className="gt-chart-tip-row"><span style={{color:'#8b95b8'}}>{mode==='quarterly'?'QoQ':'YoY'} growth</span><b style={{color:grow>=0?'#34d399':'#fb7185'}}>{grow>=0?'+':''}{grow.toFixed(1)}%</b></div>}
+        </div>
+      );
+    })()}
+   </div>
   );
 }
 
@@ -1705,8 +1757,12 @@ function RevenueGrowthLegend({accent}){
         }}/>
         <span>NET&nbsp;INCOME</span>
       </div>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <span style={{width:18,height:0,borderTop:'2px solid #fbbf24',boxShadow:'0 0 8px rgba(251,191,36,.6)'}}/>
+        <span style={{color:'rgba(251,191,36,.95)'}}>GROSS&nbsp;MARGIN&nbsp;%</span>
+      </div>
       <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:'auto',color:'rgba(199,186,255,.7)',fontSize:9.5,fontWeight:500}}>
-        <span style={{color:'#34d399',fontWeight:700}}>▲</span> growth vs prior period · <span style={{color:'rgba(199,186,255,.85)'}}>NM</span> = net margin
+        <span style={{color:'#34d399',fontWeight:700}}>▲</span> hover bars for detail · <span style={{color:'rgba(199,186,255,.85)'}}>NM</span> = net margin
       </div>
     </div>
   );

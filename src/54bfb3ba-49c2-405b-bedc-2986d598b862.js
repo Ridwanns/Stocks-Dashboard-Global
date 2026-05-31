@@ -650,6 +650,56 @@ const GT_ANIM_CSS = `
 }
 .gt-stars-css-2 { background-size: 230px 230px; background-position: 70px 40px; opacity: .34; animation-duration: 9s; animation-delay: -3s; }
 @keyframes gtTwinkle { 0%,100% { opacity: .5; } 50% { opacity: .82; } }
+
+/* ════════ Custom chart hover tooltip (Module 5) ════════ */
+.gt-chart-tip {
+  position: absolute; top: 4px; transform: translateX(-50%); pointer-events: none; z-index: 5;
+  background: rgba(8,11,20,.93); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.13); border-radius: 6px; padding: 8px 11px;
+  font-family: 'JetBrains Mono', monospace; min-width: 158px;
+  box-shadow: 0 12px 34px -12px rgba(0,0,0,.85);
+  animation: gtTipIn .14s ease-out both;
+}
+@keyframes gtTipIn { from { opacity: 0; transform: translateX(-50%) translateY(5px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.gt-chart-tip-h { font-size: 11px; color: #eef0ff; font-weight: 700; letter-spacing: .5px; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,.13); }
+.gt-chart-tip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 10px; color: #b9c2db; padding: 2.5px 0; }
+.gt-chart-tip-row b { color: #eef0ff; font-weight: 700; }
+
+/* ════════ Terminal-style subscribe field (Module 3) ════════ */
+.gt-sub-terminal {
+  margin-top: 20px; display: flex; align-items: center; gap: 10px;
+  padding: 5px 6px 5px 14px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.1); background: rgba(24,24,27,.42);
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+.gt-sub-terminal:focus-within { border-color: rgba(34,211,238,.6); box-shadow: 0 0 0 3px rgba(34,211,238,.12), 0 0 24px -6px rgba(139,92,246,.7); }
+.gt-sub-prompt { color: #34d399; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; }
+.gt-sub-field { position: relative; flex: 1; display: flex; }
+.gt-sub-input { width: 100%; background: transparent; border: none; outline: none; color: #eef0ff;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: .5px; padding: 10px 0; }
+.gt-sub-ph { position: absolute; left: 0; top: 50%; transform: translateY(-50%); pointer-events: none;
+  color: rgba(148,163,184,.7); font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: .5px; }
+.gt-sub-input:focus ~ .gt-sub-ph, .gt-sub-input:not(:placeholder-shown) ~ .gt-sub-ph { display: none; }
+.gt-sub-caret { color: #22d3ee; margin-left: 1px; animation: gtBlink 1.05s steps(1, end) infinite; }
+.gt-sub-btn { padding: 10px 22px; background: linear-gradient(135deg, #8b5cf6, #22d3ee); color: #06080f;
+  border: none; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 800;
+  letter-spacing: 1.2px; cursor: pointer; white-space: nowrap; transition: transform .15s ease, box-shadow .2s ease;
+  box-shadow: 0 0 18px -6px rgba(34,211,238,.7); }
+.gt-sub-btn:hover { transform: translateY(-1px); box-shadow: 0 0 28px -4px rgba(34,211,238,.95); }
+.gt-sub-btn:active { transform: translateY(0); }
+@media (max-width: 520px) { .gt-sub-terminal { flex-wrap: wrap; } .gt-sub-btn { width: 100%; } }
+
+/* ════════ Premium paywall (Module 4) ════════ */
+.gt-paywall { position: relative; }
+.gt-paywall-content { filter: blur(5px); opacity: .8; user-select: none; pointer-events: none; }
+.gt-paywall-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 4px; pointer-events: none; }
+.gt-paywall-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: .5px;
+  color: #eef0ff; text-align: center; line-height: 1.4;
+  background: rgba(8,11,20,.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(34,211,238,.42); border-radius: 8px; padding: 7px 11px;
+  box-shadow: 0 0 22px -6px rgba(34,211,238,.6);
+}
 @media (prefers-reduced-motion: reduce) {
   .gt-hud-ring, .gt-hud-conn, .gt-hud-card, .gt-hud-scan, .gt-globe-card, .gt-reticle-ring, .gt-track-line { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1 !important; }
 }
