@@ -106,6 +106,11 @@ function Aurora() {
       position: 'fixed', inset: 0, overflow: 'hidden',
       pointerEvents: 'none', zIndex: -1, background: GT.bg,
     }}>
+      {/* GUARANTEED static starfield (pure CSS) — always paints even if WebGL
+          is slow/blocked/lost, so the "spark" never fully disappears. The
+          WebGL canvas layers its drifting parallax stars on top. */}
+      <div className="gt-stars-css" />
+      <div className="gt-stars-css gt-stars-css-2" />
       {/* WebGL starfield — uniformly scattered, drifts slowly with parallax */}
       <canvas ref={canvasRef} style={{
         position: 'absolute', inset: 0, width: '100%', height: '100%',
@@ -614,8 +619,39 @@ const GT_ANIM_CSS = `
 .gt-hud-corner.br { right: -1px; bottom: -1px; border-right-width: 2px; border-bottom-width: 2px; }
 .gt-hud-scan { position: absolute; left: 0; right: 0; top: 0; height: 2px; animation: gtHudScanMove 2.6s ease-in-out infinite; }
 @keyframes gtHudScanMove { 0% { top: 0; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+
+/* Stable lock-on card (top-left of the globe). Re-animates on country change. */
+.gt-globe-card {
+  position: absolute; left: 14px; top: 14px; min-width: 160px; padding: 11px 14px 13px;
+  background: rgba(8,12,24,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid; border-radius: 5px; overflow: hidden; z-index: 4;
+  animation: gtCardIn .5s cubic-bezier(.2,.85,.3,1) both;
+}
+@keyframes gtCardIn { from { opacity: 0; transform: translateY(-7px) scale(.9); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+/* spinning targeting reticle + marching connector line */
+.gt-reticle-ring { transform-box: fill-box; transform-origin: center; animation: gtHudSpin 5s linear infinite; }
+.gt-track-line { stroke-linecap: round; animation: gtDashMove 1s linear infinite; }
+@keyframes gtDashMove { to { stroke-dashoffset: -14; } }
+
+/* ════════ Guaranteed CSS starfield (WebGL-independent) ════════ */
+.gt-stars-css {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1.3px 1.3px at 25px 35px, rgba(255,255,255,.95), transparent),
+    radial-gradient(1px 1px at 120px 80px, rgba(199,186,255,.85), transparent),
+    radial-gradient(1px 1px at 200px 150px, rgba(255,255,255,.75), transparent),
+    radial-gradient(1.5px 1.5px at 80px 205px, rgba(34,211,238,.7), transparent),
+    radial-gradient(1px 1px at 262px 42px, rgba(255,255,255,.85), transparent),
+    radial-gradient(1px 1px at 158px 262px, rgba(255,255,255,.65), transparent),
+    radial-gradient(1.3px 1.3px at 300px 220px, rgba(139,92,246,.75), transparent),
+    radial-gradient(1px 1px at 42px 292px, rgba(255,255,255,.75), transparent);
+  background-size: 340px 340px; background-repeat: repeat;
+  opacity: .5; animation: gtTwinkle 6s ease-in-out infinite;
+}
+.gt-stars-css-2 { background-size: 230px 230px; background-position: 70px 40px; opacity: .34; animation-duration: 9s; animation-delay: -3s; }
+@keyframes gtTwinkle { 0%,100% { opacity: .5; } 50% { opacity: .82; } }
 @media (prefers-reduced-motion: reduce) {
-  .gt-hud-ring, .gt-hud-conn, .gt-hud-card, .gt-hud-scan { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1 !important; }
+  .gt-hud-ring, .gt-hud-conn, .gt-hud-card, .gt-hud-scan, .gt-globe-card, .gt-reticle-ring, .gt-track-line { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1 !important; }
 }
 
 /* ════════ Rich Financials / section transitions ════════ */

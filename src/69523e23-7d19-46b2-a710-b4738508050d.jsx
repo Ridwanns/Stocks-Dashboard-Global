@@ -579,51 +579,65 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(size); try { ro.observe(canvas); } catch (e) {} }
 
   let raf = 0, t0 = performance.now(), last = t0;
-  let selectedId = null, projectCb = null;
+  let selectedId = null, lockUntil = 0, projectCb = null, activeCb = null, activeId = null;
   let ryCur = 0, ryAuto = 0;     // current rotation, and free-running auto angle
   const _v = new THREE.Vector3();
+
+  // The marker currently facing the camera (max world-z after Y rotation).
+  function computeFront(ry) {
+    let best = null, bestZ = -Infinity;
+    for (const id in markerMap) {
+      const p = markerMap[id].pos;
+      const wz = -p.x * Math.sin(ry) + p.z * Math.cos(ry);
+      if (wz > bestZ) { bestZ = wz; best = id; }
+    }
+    return best;
+  }
+
   function frame() {
     const now = performance.now();
     const dt = Math.min(64, now - last); last = now;
     const el = (now - t0) * 0.001;
-    ryAuto += dt * 0.00018;        // gentle idle drift (rad/ms)
-    // When a market is selected, ease the globe so it faces the camera and hold
-    // there; otherwise drift slowly. (No auto-cycling — selection is by click.)
-    if (selectedId && markerMap[selectedId]) {
-      let target = markerMap[selectedId].focusRy;
-      let d = ((target - ryCur + Math.PI) % (Math.PI * 2)) - Math.PI;
-      ryCur += d * Math.min(1, dt * 0.005);   // ease toward target
+
+    const locked = selectedId && now < lockUntil;
+    if (locked && markerMap[selectedId]) {
+      // ease the globe so the locked market faces the camera, then hold
+      const target = markerMap[selectedId].focusRy;
+      const d = ((target - ryCur + Math.PI) % (Math.PI * 2)) - Math.PI;
+      ryCur += d * Math.min(1, dt * 0.0045);
+      ryAuto = ryCur;                       // keep auto in sync for a seamless resume
     } else {
+      if (selectedId && now >= lockUntil) selectedId = null;  // lock expired → resume scan
+      ryAuto += dt * 0.00014;               // slow cinematic drift (each country readable)
       ryCur = ryAuto;
     }
     earthGroup.rotation.y = ryCur;
     earthGroup.updateMatrixWorld(true);
 
-    // pulse markers; selected one is brightest/biggest
+    // active = locked selection, else whoever is rotating through the front
+    const front = computeFront(ryCur);
+    const newActive = (locked && selectedId) ? selectedId : front;
+    if (newActive !== activeId) { activeId = newActive; if (activeCb) activeCb(activeId); }
+
+    // pulse markers; the active one is brightest/biggest
     for (const id in markerMap) {
       const mk = markerMap[id];
-      const sel = id === selectedId;
-      const tw = (sel ? 1.5 : 0.85) + 0.22 * Math.sin(el * 3 + mk.pos.x);
+      const on = id === activeId;
+      const tw = (on ? 1.7 : 0.78) + 0.22 * Math.sin(el * 3 + mk.pos.x);
       mk.dot.scale.set(mk.base * tw, mk.base * tw, 1);
-      mk.dot.material.opacity = sel ? 1 : 0.9;
-      mk.beam.material.opacity = sel ? 0.95 : 0.5;
+      mk.dot.material.opacity = on ? 1 : 0.65;
+      mk.beam.material.opacity = on ? 1 : 0.35;
     }
 
-    // project the selected marker to 2D canvas pixels for the HTML HUD overlay
+    // project the active marker to 2D canvas pixels for the SVG reticle + line
     if (projectCb) {
-      if (selectedId && markerMap[selectedId]) {
-        _v.copy(markerMap[selectedId].pos); earth.localToWorld(_v); // world pos
-        const wz = _v.z; // not exactly camera-space, recompute facing below
+      if (activeId && markerMap[activeId]) {
+        _v.copy(markerMap[activeId].pos); earth.localToWorld(_v);
+        const facing = _v.z > 0;            // near hemisphere → visible
         const proj = _v.clone().project(camera);
         const w = canvas.clientWidth || 320, h = canvas.clientHeight || 320;
-        const px = (proj.x * 0.5 + 0.5) * w;
-        const py = (-proj.y * 0.5 + 0.5) * h;
-        // facing the camera if the marker's world position is on the near hemisphere
-        const facing = _v.z > 0;
-        projectCb({ id: selectedId, x: px, y: py, visible: facing && proj.z < 1 });
-      } else {
-        projectCb(null);
-      }
+        projectCb({ id: activeId, x: (proj.x * 0.5 + 0.5) * w, y: (-proj.y * 0.5 + 0.5) * h, visible: facing && proj.z < 1 });
+      } else { projectCb(null); }
     }
 
     renderer.render(scene, camera);
@@ -647,8 +661,10 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
         markerMap[id].beam.material.color.set(c);
       }
     },
-    setSelected(id) { selectedId = (id && markerMap[id]) ? id : null; },
+    // Lock onto a market for ~7s (eases it to the front), then auto-scan resumes.
+    setSelected(id) { selectedId = (id && markerMap[id]) ? id : null; lockUntil = selectedId ? (performance.now() + 7000) : 0; },
     onProject(cb) { projectCb = cb; },
+    onActive(cb) { activeCb = cb; if (activeId) cb(activeId); },
   };
 };
 

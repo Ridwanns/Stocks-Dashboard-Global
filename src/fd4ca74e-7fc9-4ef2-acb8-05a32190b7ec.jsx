@@ -714,15 +714,22 @@ function GlobalMarketGlobe(){
   const {palette,headline}=useTheme();
   const canvasRef=dsUseRef(null);
   const ctrlRef=dsUseRef(null);
-  const hudRef=dsUseRef(null);
+  const lineRef=dsUseRef(null);
+  const reticleRef=dsUseRef(null);
   const markets=(typeof window!=='undefined'&&window.MARKET_INDICES)||[];
   const [data,setData]=dsUseState(()=>({...(typeof window!=='undefined'&&window.LIVE&&window.LIVE.indices)||{}}));
-  // Selection is by CLICK only (no auto-cycling). Default to NASDAQ so the HUD
-  // is discoverable on first paint; the user drives it from there.
-  const [selId,setSelId]=dsUseState(()=>{ const ix=markets.find(m=>m.id==='IXIC'); return ix?ix.id:(markets[0]&&markets[0].id)||null; });
-  const selRef=dsUseRef(selId);
+  // activeId = the country currently shown in the card: whoever is rotating
+  // through the front during the cinematic auto-scan, or the clicked/locked one.
+  const [activeId,setActiveId]=dsUseState(()=>(markets[0]&&markets[0].id)||null);
+  const [selId,setSelId]=dsUseState(null);        // last clicked (for list highlight)
+  const [locked,setLocked]=dsUseState(false);
 
-  const select=(id)=>{ selRef.current=id; setSelId(id); if(ctrlRef.current) ctrlRef.current.setSelected(id); };
+  const select=(id)=>{
+    setSelId(id); setActiveId(id); setLocked(true);
+    if(ctrlRef.current) ctrlRef.current.setSelected(id);
+    // mirror the globe's 7s lock so the badge flips back to SCANNING
+    clearTimeout(select._t); select._t=setTimeout(()=>setLocked(false),7000);
+  };
 
   dsUseEffect(()=>{
     const canvas=canvasRef.current;
@@ -732,14 +739,15 @@ function GlobalMarketGlobe(){
       const ctrl=window.startMarketGlobe(canvas, markets, {accentA:palette.a, accentB:palette.b});
       ctrlRef.current=ctrl;
       ctrl.setData((window.LIVE&&window.LIVE.indices)||{});
-      ctrl.setSelected(selRef.current);
-      // Drive the HUD position straight from the render loop (no React re-render
-      // per frame) — just mutate the overlay transform/opacity.
+      // Card content follows the active (front-facing / locked) country.
+      ctrl.onActive((id)=>setActiveId(id));
+      // Reticle + connector line driven straight from the render loop (no React
+      // re-render per frame) — mutate SVG attributes via refs.
       ctrl.onProject((p)=>{
-        const el=hudRef.current; if(!el) return;
-        if(!p||!p.visible){ el.style.opacity='0'; return; }
-        el.style.opacity='1';
-        el.style.transform=`translate(${p.x}px, ${p.y}px)`;
+        const ln=lineRef.current, rt=reticleRef.current;
+        if(!p||!p.visible){ if(ln)ln.style.opacity='0'; if(rt)rt.style.opacity='0'; return; }
+        if(rt){ rt.style.opacity='1'; rt.setAttribute('transform',`translate(${p.x} ${p.y})`); }
+        if(ln){ ln.style.opacity='0.9'; ln.setAttribute('x2',p.x); ln.setAttribute('y2',p.y); }
       });
       return true;
     };
@@ -762,41 +770,46 @@ function GlobalMarketGlobe(){
   },[palette.a,palette.b]);
 
   const anyData=Object.keys(data).length>0;
-  const selM=markets.find(m=>m.id===selId);
-  const selD=selId?data[selId]:null;
-  const selUp=selD?selD.chgPct>=0:true;
-  const selC=selD?(selUp?GT.green:GT.red):palette.b;
+  const actM=markets.find(m=>m.id===activeId);
+  const actD=activeId?data[activeId]:null;
+  const actUp=actD?actD.chgPct>=0:true;
+  const actC=actD?(actUp?GT.green:GT.red):palette.b;
 
   return(
     <Panel kicker="Global markets · live" title="World index board" accent={palette.b}
       right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:anyData?GT.green:GT.amber}}>
         <span style={{width:5,height:5,borderRadius:'50%',background:anyData?GT.green:GT.amber,boxShadow:anyData?`0 0 6px ${GT.green}`:'none'}}/>{anyData?'LIVE':'CONNECTING'}</span>}>
       <div className="gt-globe-wrap" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'stretch'}}>
-        {/* 3D globe + Iron-Man HUD overlay */}
+        {/* 3D globe + cinematic lock-on HUD */}
         <div className="gt-globe-canvas" style={{position:'relative',height:360,overflow:'hidden'}}>
           <canvas ref={canvasRef} style={{width:'100%',height:360,display:'block'}}/>
-          {/* HUD — positioned at the selected marker via ref-driven transform */}
-          {selM&&(
-            <div ref={hudRef} className="gt-hud" style={{position:'absolute',left:0,top:0,transform:'translate(50%,42%)',pointerEvents:'none',willChange:'transform',transition:'opacity .3s ease'}}>
-              <svg className="gt-hud-svg" width="180" height="150" style={{position:'absolute',left:-15,top:-15,overflow:'visible'}}>
-                <circle className="gt-hud-ring" cx="15" cy="15" r="12" fill="none" stroke={selC} strokeWidth="1.4" strokeDasharray="14 6"/>
-                <circle cx="15" cy="15" r="3" fill={selC}/>
-                <line className="gt-hud-conn" x1="15" y1="15" x2="58" y2="-58" stroke={selC} strokeWidth="1.2"/>
-              </svg>
-              <div className="gt-hud-card" style={{borderColor:`${selC}66`}}>
-                <i className="gt-hud-corner tl" style={{borderColor:selC}}/><i className="gt-hud-corner tr" style={{borderColor:selC}}/>
-                <i className="gt-hud-corner bl" style={{borderColor:selC}}/><i className="gt-hud-corner br" style={{borderColor:selC}}/>
-                <div className="gt-hud-head" style={{color:selC}}>{selM.flag} {selM.city.toUpperCase()} · {selM.cc}</div>
-                <div className="gt-hud-name" style={{fontFamily:headline}}>{selM.name}</div>
-                <div className="gt-hud-val">
-                  <span className={selD?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:17,fontWeight:700,color:GT.text}}>{selD?fmtIdx(selD.price):'————'}</span>
-                  <span style={{fontFamily:GT.fontMono,fontSize:12,fontWeight:700,color:selC}}>{selD?`${selUp?'▲ +':'▼ '}${Math.abs(selD.chgPct).toFixed(2)}%`:'···'}</span>
-                </div>
-                <div className="gt-hud-scan" style={{background:`linear-gradient(90deg,transparent,${selC}aa,transparent)`}}/>
+          {/* SVG overlay: connector line (card → marker) + tracking reticle */}
+          <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',overflow:'visible'}}>
+            <line ref={lineRef} className="gt-track-line" x1="104" y1="118" x2="104" y2="118" stroke={actC} strokeWidth="1.1" strokeDasharray="3 4" style={{opacity:0,transition:'opacity .3s'}}/>
+            <g ref={reticleRef} style={{opacity:0,transition:'opacity .3s'}}>
+              <circle className="gt-reticle-ring" r="13" fill="none" stroke={actC} strokeWidth="1.3" strokeDasharray="16 7"/>
+              <circle r="20" fill="none" stroke={actC} strokeWidth="0.6" opacity="0.35"/>
+              <circle r="2.5" fill={actC}/>
+            </g>
+          </svg>
+          {/* Stable info card (top-left, never clips). Re-animates on country change. */}
+          {actM&&(
+            <div key={activeId} className="gt-globe-card" style={{borderColor:`${actC}55`,boxShadow:`0 8px 30px -12px rgba(0,0,0,.7), 0 0 0 1px ${actC}22`}}>
+              <i className="gt-hud-corner tl" style={{borderColor:actC}}/><i className="gt-hud-corner tr" style={{borderColor:actC}}/>
+              <i className="gt-hud-corner bl" style={{borderColor:actC}}/><i className="gt-hud-corner br" style={{borderColor:actC}}/>
+              <div className="gt-hud-head" style={{color:actC}}>{actM.flag} {actM.city.toUpperCase()} · {actM.cc}</div>
+              <div className="gt-hud-name" style={{fontFamily:headline}}>{actM.name}</div>
+              <div className="gt-hud-val">
+                <span className={actD?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:18,fontWeight:700,color:GT.text}}>{actD?fmtIdx(actD.price):'————'}</span>
+                <span style={{fontFamily:GT.fontMono,fontSize:12,fontWeight:700,color:actC}}>{actD?`${actUp?'▲ +':'▼ '}${Math.abs(actD.chgPct).toFixed(2)}%`:'···'}</span>
               </div>
+              <div className="gt-hud-scan" style={{background:`linear-gradient(90deg,transparent,${actC}aa,transparent)`}}/>
             </div>
           )}
-          <div style={{position:'absolute',left:10,bottom:8,fontFamily:GT.fontMono,fontSize:8.5,color:'rgba(160,172,200,.65)',letterSpacing:1,pointerEvents:'none'}}>◐ TAP A MARKET TO LOCK ON</div>
+          <div style={{position:'absolute',right:10,bottom:8,display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:8.5,letterSpacing:1,pointerEvents:'none'}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:locked?GT.amber:GT.green,boxShadow:`0 0 6px ${locked?GT.amber:GT.green}`}}/>
+            <span style={{color:'rgba(190,200,224,.8)'}}>{locked?'❚❚ LOCKED':'▶ AUTO-SCAN'}</span>
+          </div>
         </div>
         {/* Live index list — click a row to lock the globe onto that exchange */}
         <div className="gt-globe-list" style={{display:'flex',flexDirection:'column',justifyContent:'center'}}>
@@ -804,17 +817,17 @@ function GlobalMarketGlobe(){
             const d=data[m.id];
             const up=d?d.chgPct>=0:true;
             const c=d?(up?GT.green:GT.red):GT.textDim;
-            const isSel=selId===m.id;
+            const isAct=activeId===m.id;
             return(
               <div key={m.id} onClick={()=>select(m.id)} style={{
                 display:'grid',gridTemplateColumns:'auto 1fr auto',gap:10,alignItems:'center',cursor:'pointer',
                 padding:'8px 10px',borderBottom:i<markets.length-1?`1px dashed ${palette.edge}`:'none',
-                background:isSel?palette.aSoft:'transparent',borderRadius:isSel?5:0,
-                boxShadow:isSel?`inset 2px 0 0 ${selC}`:'none',transition:'background .25s,box-shadow .25s',
+                background:isAct?palette.aSoft:'transparent',borderRadius:isAct?5:0,
+                boxShadow:isAct?`inset 2px 0 0 ${c}`:'none',transition:'background .25s,box-shadow .25s',
               }}>
                 <span style={{fontSize:15,lineHeight:1}}>{m.flag}</span>
                 <div style={{minWidth:0}}>
-                  <div style={{fontFamily:GT.fontMono,fontSize:11.5,color:isSel?GT.text:GT.text,fontWeight:700,letterSpacing:0.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
+                  <div style={{fontFamily:GT.fontMono,fontSize:11.5,color:GT.text,fontWeight:700,letterSpacing:0.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
                   <div style={{fontFamily:GT.fontMono,fontSize:8.5,color:GT.textDim,letterSpacing:0.8}}>{m.city.toUpperCase()}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
@@ -2012,24 +2025,32 @@ function TabFinancials({t}){
         })}
       </div>
 
-      {/* Annual/Quarterly toggle — only the income statement has real
-          quarterly filings. Balance Sheet & Cash Flow are annual-only, so we
-          show a static "Annual" label there instead of a toggle that lies. */}
+      {/* Annual/Quarterly toggle — always visible for every statement so the
+          "yearly" control never disappears. Only the income statement carries
+          real quarterly filings, so Quarterly is disabled (not hidden) on the
+          annual-only Balance Sheet & Cash Flow. */}
       {(section==='income'||section==='balance'||section==='cashflow')&&(()=>{
-        const hasQuarterly = section==='income' && dd && dd.quarterly && dd.quarterly.income && dd.quarterly.income.length;
+        const hasQuarterly = !!(dd && dd.quarterly && dd.quarterly.income && dd.quarterly.income.length);
+        // Balance Sheet & Cash Flow are annual-only → always render them annual.
+        const effMode = section==='income' ? mode : 'annual';
         return(
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          {hasQuarterly ? [['annual','Annual'],['quarterly','Quarterly']].map(([k,l])=>(
-            <button key={k} onClick={()=>setMode(k)} style={{
-              padding:'5px 14px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9.5,fontWeight:700,letterSpacing:1,
-              background:mode===k?palette.a:'transparent',color:mode===k?'#0a0e1c':GT.text,
-              border:`1px solid ${mode===k?palette.a:palette.edge}`,cursor:'pointer',transition:'all .18s',
-              boxShadow:mode===k?`0 0 14px -4px ${palette.a}`:'none',
-            }}>{l}</button>
-          )) : (
-            <span style={{padding:'5px 14px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9.5,fontWeight:700,letterSpacing:1,
-              background:palette.aSoft,color:palette.a,border:`1px solid ${palette.edge}`}}>Annual · audited</span>
-          )}
+          {[['annual','Annual'],['quarterly','Quarterly']].map(([k,l])=>{
+            const isOn=effMode===k;
+            const disabled = k==='quarterly' && section!=='income';
+            return(
+            <button key={k} disabled={disabled}
+              onClick={()=>{ if(!disabled) setMode(k); }}
+              title={disabled?'Quarterly filings available for the income statement only':''}
+              style={{
+                padding:'5px 14px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9.5,fontWeight:700,letterSpacing:1,
+                background:isOn?palette.a:'transparent',color:isOn?'#0a0e1c':(disabled?GT.textVeryDim:GT.text),
+                border:`1px solid ${isOn?palette.a:palette.edge}`,cursor:disabled?'not-allowed':'pointer',
+                opacity:disabled?0.45:1,transition:'all .18s',
+                boxShadow:isOn?`0 0 14px -4px ${palette.a}`:'none',
+              }}>{l}</button>
+            );
+          })}
           {dd&&<span style={{marginLeft:'auto',fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:'55%'}}>{dd.sourceNote}</span>}
         </div>
         );
@@ -2131,9 +2152,10 @@ function TabFinancials({t}){
         </Panel>
       )}
       {section==='balance'&&dd&&(()=>{
-        const bRows=(mode==='quarterly'&&view.balance?.length)?view.balance:dd.annual.balance;
-        const bPeriods=(mode==='quarterly'&&view.balance?.length)?(view.periods||dd.annual.periods):(dd.annual.balancePeriods||dd.annual.periods);
-        const bMode=(mode==='quarterly'&&view.balance?.length)?'Quarterly':'Annual';
+        // Balance Sheet is annual-only — always render the audited annual data.
+        const bRows=dd.annual.balance||[];
+        const bPeriods=dd.annual.balancePeriods||dd.annual.periods;
+        const bMode='Annual';
         return(
           <Panel kicker={`Balance Sheet · ${t.sym}`} title={bMode}
             accent={palette.b} right={dd.unit+' '+dd.currency}>
@@ -2143,9 +2165,10 @@ function TabFinancials({t}){
         );
       })()}
       {section==='cashflow'&&dd&&(()=>{
-        const cfRows=(mode==='quarterly'&&view.cashflow?.length)?view.cashflow:dd.annual.cashflow;
-        const cfPeriods=(mode==='quarterly'&&view.cashflow?.length)?(view.periods||dd.annual.periods):(dd.annual.cashflowPeriods||dd.annual.periods);
-        const cfMode=(mode==='quarterly'&&view.cashflow?.length)?'Quarterly':'Annual';
+        // Cash Flow is annual-only — always render the audited annual data.
+        const cfRows=dd.annual.cashflow||[];
+        const cfPeriods=dd.annual.cashflowPeriods||dd.annual.periods;
+        const cfMode='Annual';
         return(
           <Panel kicker={`Cash Flow · ${t.sym}`} title={cfMode}
             accent="#f472b6" right={dd.unit+' '+dd.currency}>
