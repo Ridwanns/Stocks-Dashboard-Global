@@ -587,44 +587,44 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
 
   let raf = 0, t0 = performance.now(), last = t0;
   let selectedId = null, lockUntil = 0, projectCb = null, activeCb = null, activeId = null;
-  let ryCur = 0, ryAuto = 0;     // current rotation, and free-running auto angle
+  let ryCur = 0, paused = false;
+  const markerOrder = markets.map(m => m.id).filter(id => markerMap[id]);
+  let scanIdx = 0, dwellUntil = 0;
   const _v = new THREE.Vector3();
-
-  // The marker currently facing the camera (max world-z after Y rotation).
-  function computeFront(ry) {
-    let best = null, bestZ = -Infinity;
-    for (const id in markerMap) {
-      const p = markerMap[id].pos;
-      const wz = -p.x * Math.sin(ry) + p.z * Math.cos(ry);
-      if (wz > bestZ) { bestZ = wz; best = id; }
-    }
-    return best;
-  }
 
   function frame() {
     const now = performance.now();
     const dt = Math.min(64, now - last); last = now;
     const el = (now - t0) * 0.001;
 
+    // Calm cinematic CAROUSEL (not a continuous spin): ease to one country,
+    // dwell so its index is readable, then advance to the next. A click locks
+    // onto a country for ~7s before the carousel resumes.
     const locked = selectedId && now < lockUntil;
+    let target, scanActive;
     if (locked && markerMap[selectedId]) {
-      // ease the globe so the locked market faces the camera, then hold
-      const target = markerMap[selectedId].focusRy;
-      const d = ((target - ryCur + Math.PI) % (Math.PI * 2)) - Math.PI;
-      ryCur += d * Math.min(1, dt * 0.0045);
-      ryAuto = ryCur;                       // keep auto in sync for a seamless resume
+      target = markerMap[selectedId].focusRy;
+      scanActive = selectedId;
     } else {
-      if (selectedId && now >= lockUntil) selectedId = null;  // lock expired → resume scan
-      ryAuto += dt * 0.00014;               // slow cinematic drift (each country readable)
-      ryCur = ryAuto;
+      if (selectedId && now >= lockUntil) selectedId = null;
+      const curId = markerOrder.length ? markerOrder[scanIdx % markerOrder.length] : null;
+      scanActive = curId;
+      target = (curId && markerMap[curId]) ? markerMap[curId].focusRy : ryCur;
+      const gap = Math.abs(((target - ryCur + Math.PI) % (Math.PI * 2)) - Math.PI);
+      if (gap < 0.03 && !paused) {
+        if (!dwellUntil) dwellUntil = now + 2600;            // pause to read the country
+        else if (now >= dwellUntil) { dwellUntil = 0; scanIdx = (scanIdx + 1) % markerOrder.length; }
+      }
+    }
+    if (!paused) {
+      const d = ((target - ryCur + Math.PI) % (Math.PI * 2)) - Math.PI;
+      ryCur += d * Math.min(1, dt * 0.0032);                 // smooth ease toward the country
     }
     earthGroup.rotation.y = ryCur;
     earthGroup.updateMatrixWorld(true);
 
-    // active = locked selection, else whoever is rotating through the front
-    const front = computeFront(ryCur);
-    const newActive = (locked && selectedId) ? selectedId : front;
-    if (newActive !== activeId) { activeId = newActive; if (activeCb) activeCb(activeId); }
+    // active country drives the card (locked selection, else the dwell target)
+    if (scanActive && scanActive !== activeId) { activeId = scanActive; if (activeCb) activeCb(activeId); }
 
     // pulse markers; the active one is brightest/biggest
     for (const id in markerMap) {
@@ -668,8 +668,15 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
         markerMap[id].beam.material.color.set(c);
       }
     },
-    // Lock onto a market for ~7s (eases it to the front), then auto-scan resumes.
-    setSelected(id) { selectedId = (id && markerMap[id]) ? id : null; lockUntil = selectedId ? (performance.now() + 7000) : 0; },
+    // Lock onto a market for ~7s (eases it to the front), then the carousel
+    // resumes from that country. Re-syncs scanIdx so there's no jump back.
+    setSelected(id) {
+      selectedId = (id && markerMap[id]) ? id : null;
+      lockUntil = selectedId ? (performance.now() + 7000) : 0;
+      dwellUntil = 0;
+      if (selectedId) { const k = markerOrder.indexOf(selectedId); if (k >= 0) scanIdx = k; }
+    },
+    setPaused(p) { paused = !!p; },     // hover-pause so the user can read calmly
     onProject(cb) { projectCb = cb; },
     onActive(cb) { activeCb = cb; if (activeId) cb(activeId); },
   };

@@ -781,7 +781,9 @@ function GlobalMarketGlobe(){
         <span style={{width:5,height:5,borderRadius:'50%',background:anyData?GT.green:GT.amber,boxShadow:anyData?`0 0 6px ${GT.green}`:'none'}}/>{anyData?'LIVE':'CONNECTING'}</span>}>
       <div className="gt-globe-wrap" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'stretch'}}>
         {/* 3D globe + cinematic lock-on HUD */}
-        <div className="gt-globe-canvas" style={{position:'relative',height:360,overflow:'hidden'}}>
+        <div className="gt-globe-canvas" style={{position:'relative',height:360,overflow:'hidden'}}
+          onMouseEnter={()=>{if(ctrlRef.current&&ctrlRef.current.setPaused)ctrlRef.current.setPaused(true);}}
+          onMouseLeave={()=>{if(ctrlRef.current&&ctrlRef.current.setPaused)ctrlRef.current.setPaused(false);}}>
           <canvas ref={canvasRef} style={{width:'100%',height:360,display:'block'}}/>
           {/* SVG overlay: connector line (card → marker) + tracking reticle */}
           <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',overflow:'visible'}}>
@@ -2580,24 +2582,34 @@ function YahooNewsHub({sym}){
     let cancelled=false;
     setStatus('loading');
     async function fetch_(){
-      const url=(window.LIVE&&window.LIVE.yahooNewsURL)?window.LIVE.yahooNewsURL(sym):`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${sym}&region=US&lang=en-US`;
-      const proxies=(window.LIVE&&window.LIVE.corsProxies)||['https://api.allorigins.win/raw?url='];
-      for(const p of proxies){
-        try{
-          const r=await fetch(p+encodeURIComponent(url),{mode:'cors'});
-          if(!r.ok) continue;
-          const text=await r.text();
-          const doc=new DOMParser().parseFromString(text,'text/xml');
-          const nodes=Array.from(doc.querySelectorAll('item')).slice(0,10);
-          const list=nodes.map(n=>({
-            title:n.querySelector('title')?.textContent||'',
-            link:n.querySelector('link')?.textContent||'#',
-            date:n.querySelector('pubDate')?.textContent||'',
-            desc:(n.querySelector('description')?.textContent||'').replace(/<[^>]+>/g,'').slice(0,240),
-          })).filter(x=>x.title);
-          if(cancelled) return;
-          if(list.length){setItems(list);setStatus('ok');setLastFetch(new Date());return;}
-        }catch(e){}
+      // Try Google News RSS (reliable) first, then Yahoo, each across every proxy.
+      const urls=[];
+      if(window.LIVE&&window.LIVE.newsURL) urls.push(window.LIVE.newsURL(sym));
+      if(window.LIVE&&window.LIVE.yahooNewsURL) urls.push(window.LIVE.yahooNewsURL(sym));
+      if(!urls.length) urls.push(`https://news.google.com/rss/search?q=${encodeURIComponent(sym+' stock')}&hl=en-US&gl=US&ceid=US:en`);
+      const proxies=(window.LIVE&&window.LIVE.corsProxies)||['https://corsproxy.io/?url=','https://api.allorigins.win/raw?url='];
+      for(const url of urls){
+        for(const p of proxies){
+          try{
+            const ctrl=new AbortController();
+            const timer=setTimeout(()=>ctrl.abort(),7000);  // fail over fast on a hung proxy
+            const r=await fetch(p+encodeURIComponent(url),{signal:ctrl.signal});
+            clearTimeout(timer);
+            if(!r.ok) continue;
+            const text=await r.text();
+            if(!text||text.length<80) continue;
+            const doc=new DOMParser().parseFromString(text,'text/xml');
+            const nodes=Array.from(doc.querySelectorAll('item')).slice(0,12);
+            const list=nodes.map(n=>({
+              title:(n.querySelector('title')?.textContent||'').replace(/\s+-\s+[^-]+$/,'').trim(),
+              link:n.querySelector('link')?.textContent||'#',
+              date:n.querySelector('pubDate')?.textContent||'',
+              desc:(n.querySelector('description')?.textContent||'').replace(/<[^>]+>/g,'').replace(/&[a-z]+;/gi,' ').slice(0,200).trim(),
+            })).filter(x=>x.title);
+            if(cancelled) return;
+            if(list.length){setItems(list);setStatus('ok');setLastFetch(new Date());return;}
+          }catch(e){}
+        }
       }
       if(!cancelled) setStatus('error');
     }
@@ -2702,8 +2714,8 @@ function TabNews({t}){
   const filtered=NEWS.filter(n=>(tickerF==='ALL'||n.tkr===tickerF)&&(sentF==='ALL'||n.sent===sentF));
   const sentCounts={BUL:NEWS.filter(n=>n.sent==='BUL').length,BER:NEWS.filter(n=>n.sent==='BER').length,NEU:NEWS.filter(n=>n.sent==='NEU').length};
 
-  const chipBtn=(label,active,onClick,color)=>(
-    <button onClick={onClick} style={{
+  const chipBtn=(label,active,onClick,color,key)=>(
+    <button key={key} onClick={onClick} style={{
       padding:'4px 10px',borderRadius:100,fontFamily:GT.fontMono,fontSize:9,fontWeight:700,
       letterSpacing:1,cursor:'pointer',border:`1px solid ${active?(color||palette.a):palette.edge}`,
       background:active?((color||palette.a)+'20'):'transparent',
@@ -2737,10 +2749,10 @@ function TabNews({t}){
       <Panel kicker="Curated intelligence" title="Analyst & media coverage" accent={palette.a}>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
           <span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,alignSelf:'center',marginRight:4}}>TICKER</span>
-          {['ALL',...ORDER].map(s=>chipBtn(s,tickerF===s,()=>setTickerF(s),s==='ALL'?undefined:palette.b))}
+          {['ALL',...ORDER].map(s=>chipBtn(s,tickerF===s,()=>setTickerF(s),s==='ALL'?undefined:palette.b,'tkr-'+s))}
           <div style={{width:1,background:palette.edge,margin:'0 4px'}}/>
           <span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,alignSelf:'center',marginRight:4}}>SENT</span>
-          {[['ALL',undefined],['BUL',GT.green],['NEU',GT.amber],['BER',GT.red]].map(([s,c])=>chipBtn(s,sentF===s,()=>setSentF(s),c))}
+          {[['ALL',undefined],['BUL',GT.green],['NEU',GT.amber],['BER',GT.red]].map(([s,c])=>chipBtn(s,sentF===s,()=>setSentF(s),c,'snt-'+s))}
         </div>
         {filtered.length===0&&(
           <div style={{padding:20,textAlign:'center',color:GT.textDim,fontFamily:GT.fontMono,fontSize:12}}>No stories match this filter.</div>

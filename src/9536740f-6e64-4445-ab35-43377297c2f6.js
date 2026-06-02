@@ -1356,10 +1356,20 @@ const LIVE = {
     MU:   'NASDAQ:MU',
     TSM:  'NYSE:TSM',
   },
+  // Google News RSS is far more reliable than Yahoo's (mostly-dead) RSS and
+  // returns standard <item> nodes. Yahoo kept as a secondary source.
+  newsQuery: { NVDA: 'NVIDIA NVDA', AMD: 'AMD Advanced Micro Devices', MU: 'Micron MU', TSM: 'TSMC Taiwan Semiconductor' },
+  newsURL: function (sym) {
+    const q = (this.newsQuery[sym] || sym) + ' stock semiconductor';
+    return 'https://news.google.com/rss/search?q=' + encodeURIComponent(q) + '&hl=en-US&gl=US&ceid=US:en';
+  },
   yahooNewsURL: (sym) => `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${sym}&region=US&lang=en-US`,
+  // Same proxy formats that the price feed proves working (note the ?url= and
+  // ?quest= query keys — the old corsproxy.io/? without url= silently failed).
   corsProxies: [
+    'https://corsproxy.io/?url=',
     'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=',
   ],
 };
 
