@@ -721,9 +721,190 @@ const TICKERS = {
       },
     },
   },
+
+  // ───────── MRVL (Marvell Technology) ─────────
+  MRVL: {
+    sym: 'MRVL',
+    name: 'Marvell Technology',
+    display: 'Marvell',
+    exchange: 'NASDAQ',
+    px: 118.40, chg: +2.15, chgPct: +1.85,
+    open: 116.50, high: 119.80, low: 115.90,
+    vol: '12.4M', mcap: '102.4B', shares: 0.87, float: '865M',
+    rating: 'BUY', target: 140.00, upside: +18.2, analysts: 38,
+    sector: 'Semiconductors · Custom Silicon & Optical',
+    one_liner: 'The custom-silicon and optical-interconnect arm of the AI buildout — hyperscaler XPUs + 1.6T optics.',
+    fundamentals: {
+      revFy: '$8.2B', revYoY: '+42%',
+      revFy26: '$8.2B', revFy25: '$5.77B',
+      gm: '51.0%', gmSub: 'FY26 GAAP · non-GAAP ~60%',
+      ni: '$2.67B', niYoY: 'NM · loss → profit',
+      eps: '$3.08',  epsYoY: 'NM',
+      fcf: '$1.56B', fcfYoY: '+12%',
+      petm: '38.4x', pfwd: '28.5x',
+      ps: '12.5x', pb: '7.2x', evEbitda: '32.0x', peg: '1.10x',
+    },
+    segments: [
+      { name: 'Data Center',           pct: 74.0, val: '6.07B' },
+      { name: 'Enterprise Networking', pct: 9.0,  val: '0.74B' },
+      { name: 'Carrier Infrastructure',pct: 5.5,  val: '0.45B' },
+      { name: 'Consumer & Other',      pct: 11.5, val: '0.94B' },
+    ],
+    quarterly: [
+      { q: 'Q3·25', rev: 1.52, ni: 0 },
+      { q: 'Q4·25', rev: 1.82, ni: 0.20 },
+      { q: 'Q1·26', rev: 1.90, ni: 0.18 },
+      { q: 'Q2·26', rev: 2.01, ni: 0.19 },
+      { q: 'Q3·26', rev: 2.07, ni: 1.90 },
+      { q: 'Q4·26', rev: 2.22, ni: 0.40 },
+    ],
+    technicals: [
+      { name: 'RSI (14)',   v: '64.2', state: 'NEUTRAL+', tone: 'amber' },
+      { name: 'MACD',       v: '+1.20', state: 'BULL X',   tone: 'green' },
+      { name: 'EMA 20',     v: '112.5', state: 'PRICE > EMA', tone: 'green' },
+      { name: 'EMA 50',     v: '104.8', state: 'PRICE > EMA', tone: 'green' },
+      { name: 'EMA 200',    v: '88.6',  state: 'GOLDEN',  tone: 'green' },
+      { name: 'ATR (14)',   v: '4.10',  state: 'EXPANDING', tone: 'amber' },
+      { name: 'OBV',        v: '+', state: 'ACCUM',     tone: 'green' },
+      { name: 'Stoch %K',   v: '71', state: 'NEUTRAL',  tone: 'amber' },
+    ],
+    levels: [
+      { kind: 'R3', px: 130.20, dist: '+10.0%' },
+      { kind: 'R2', px: 125.60, dist: '+6.1%' },
+      { kind: 'R1', px: 121.40, dist: '+2.5%' },
+      { kind: 'PX', px: 118.40, dist: 'CURR', active: true },
+      { kind: 'S1', px: 114.20, dist: '-3.5%' },
+      { kind: 'S2', px: 109.80, dist: '-7.3%' },
+      { kind: 'S3', px: 102.50, dist: '-13.4%' },
+    ],
+    scenarios: [
+      { label: 'BULL', prob: 35, px: 175, chg: '+48%', drivers: 'Custom XPU ramp (Trainium/Maia/Axion) · 1.6T optics inflection · DC mix >80%' },
+      { label: 'BASE', prob: 50, px: 140, chg: '+18%', drivers: 'Data-center +40% · steady ASIC design wins · non-GAAP margin recovery to ~62%' },
+      { label: 'BEAR', prob: 15, px: 85,  chg: '-28%', drivers: 'Hyperscaler ASIC insourcing · optical pricing pressure · enterprise/carrier soft' },
+    ],
+    moat: [
+      ['Custom XPU design IP',   'Deep SerDes + packaging expertise; co-designs hyperscaler ASICs (Trainium, Maia, Axion) few merchant vendors can match.'],
+      ['Optical DSP leadership', 'PAM4 / coherent DSP for 800G → 1.6T. The interconnect backbone of every AI training cluster.'],
+      ['5nm/3nm at TSMC',        'Advanced-node access + CoWoS allocation for custom AI silicon alongside the GPU leaders.'],
+      ['Acquired IP stack',      'Inphi (electro-optics) + Innovium (switching) fold into a full data-center networking portfolio.'],
+    ],
+    risks: [
+      { lvl: 'HIGH', name: 'Hyperscaler ASIC insourcing', note: 'If cloud vendors fully internalize custom silicon, MRVL design-win pipeline compresses.' },
+      { lvl: 'MED',  name: 'Customer concentration',       note: 'Top hyperscaler customers ~50%+ of data-center revenue; design-cycle lumpiness.' },
+      { lvl: 'MED',  name: 'Optical pricing / competition', note: 'Broadcom + startups pressure DSP/optics pricing as 1.6T volumes scale.' },
+      { lvl: 'LOW',  name: 'Enterprise / carrier softness', note: 'Legacy segments remain demand-soft; slow recovery caps blended growth.' },
+    ],
+    accent: '#2a7de1',
+    quant: {
+      dcfAssumptions: [
+        ['Base Revenue (FY2026)',      '$8.2B',   'a'],
+        ['Revenue CAGR (Y1–Y5)',       '25.0%',   'g'],
+        ['Revenue CAGR (Y6–Y10)',      '10.0%',   ''],
+        ['Terminal Growth Rate',       '3.5%',    ''],
+        ['EBIT Margin (Stabilized)',   '38.0% (non-GAAP path)', 'g'],
+        ['Tax Rate',                   '15.0%',   ''],
+        ['D&A / Revenue',              '14.0%',   ''],
+        ['CapEx / Revenue',            '5.0%',    ''],
+        ['NWC Change / Revenue',       '2.0%',    ''],
+      ],
+      wacc: [
+        ['Risk-Free Rate',             '4.25%',   ''],
+        ['Equity Risk Premium',        '5.50%',   ''],
+        ['Beta (5Y Monthly)',          '1.42',    ''],
+        ['Cost of Equity (CAPM)',      '12.06%',  'a'],
+        ['Pre-Tax Cost of Debt',       '5.10%',   ''],
+        ['Debt Weight',                '18.0%',   ''],
+        ['Equity Weight',              '82.0%',   ''],
+        ['WACC',                       '10.67%',  'a', true],
+      ],
+      dcfOutput: [
+        ['PV of FCF (Stage 1: Y1–5)',  '$18.6B',   'a'],
+        ['PV of FCF (Stage 2: Y6–10)', '$32.4B',   'a'],
+        ['Terminal Value (Gordon)',     '$168.0B',  'a'],
+        ['PV of Terminal Value',        '$60.8B',   'a'],
+        ['Enterprise Value',            '$111.8B',  '', true],
+        ['(−) Net Debt',                '−$3.0B',   'r'],
+        ['Equity Value',                '$108.8B',  'g', true],
+        ['Shares Outstanding',          '865M',     ''],
+        ['Implied Price / Share',       '$125.78',  'a', true],
+      ],
+      dcfNote: 'DCF implies ~$126 vs current ~$118 (+7%). Model assumes data-center revenue compounds ~30% near-term on custom XPU + optics, non-GAAP operating margin recovers toward ~38%, and capex intensity stays light (fabless). The swing factor is hyperscaler ASIC design-win retention.',
+      peers: [
+        { sym: 'MRVL',        val: 28.5, label: 'Fwd P/E', active: true },
+        { sym: 'AVGO',        val: 32.4, label: 'P/E' },
+        { sym: 'NVDA',        val: 28.2, label: 'P/E' },
+        { sym: 'AMD',         val: 27.0, label: 'P/E' },
+        { sym: 'MED',         val: 26.0, label: 'AI-silicon median' },
+      ],
+      multiplesVal: [
+        ['Forward P/E × EPS (FY27E)', '32× × $4.10 = $131', 'a'],
+        ['Forward P/E × EPS (FY28E)', '28× × $5.60 = $157', 'a'],
+        ['EV/EBITDA × EBITDA',         '30× × $3.6B → $122', 'a'],
+        ['EV/Revenue × Rev',           '11× × $10.8B → $134', 'a'],
+        ['Premium to AI-silicon median','32× × FY28 EPS → $179', 'g'],
+      ],
+      risk: [
+        ['Beta (5Y Monthly)',       '1.42',  ''],
+        ['Annualized Volatility',   '52.0%', 'y'],
+        ['Sharpe Ratio (1Y)',       '1.18',  'g'],
+        ['Sortino Ratio (1Y)',      '1.64',  'g'],
+        ['Max Drawdown (1Y)',       '-38.5%','r'],
+        ['VaR (95%, 1-Day)',        '-5.2%', 'r'],
+        ['CVaR (95%, 1-Day)',       '-7.4%', 'r'],
+        ['Correlation w/ Basket',   '0.82',  ''],
+      ],
+      mcParams: [
+        ['Current Price',                 '$118.40',           'a'],
+        ['Expected Annual Return (μ)',    '16.0%',             'g'],
+        ['Annual Volatility (σ)',         '52.0%',             ''],
+        ['Simulations',                   '10,000 GBM paths',  ''],
+      ],
+      mcResults: [
+        { label: '5th · worst',   px: 70,  tone: 'r' },
+        { label: '25th',          px: 104, tone: 'y' },
+        { label: '50th · median', px: 138, tone: 'a' },
+        { label: '75th',          px: 178, tone: 'g' },
+        { label: '95th · best',   px: 235, tone: 'g' },
+      ],
+      mcSummary: [
+        ['Mean Price',                '$142', 'a', true],
+        ['Probability > Current',     '56.4%','g'],
+        ['Probability > $150',        '34.8%','y'],
+      ],
+      regression: {
+        history: [
+          { y: 'FY2022',  v: 4.46, tone: '' },
+          { y: 'FY2023',  v: 5.92, tone: 'g' },
+          { y: 'FY2024',  v: 5.51, tone: 'r' },
+          { y: 'FY2025',  v: 5.77, tone: '' },
+          { y: 'FY2026',  v: 8.20, tone: 'g' },
+          { y: 'FY2027E', v: 10.8, tone: 'g' },
+          { y: 'FY2028E', v: 13.5, tone: 'a' },
+        ],
+        stats: [
+          ['Model',                       'Polynomial Growth', ''],
+          ['R-Squared',                   '0.94',  'g'],
+          ['Revenue CAGR (FY26–FY28E)',   '28.4%', 'g'],
+          ['Earnings CAGR (FY26–FY28E)',  '34.0%', 'g'],
+          ['Confidence Interval (95%)',   '±$1.4B on FY28E', ''],
+        ],
+      },
+      composite: {
+        components: [
+          { label: 'DCF',           val: 126, weight: 30, tone: 'a' },
+          { label: 'Multiples',     val: 148, weight: 25, tone: 'g' },
+          { label: 'Monte Carlo',   val: 142, weight: 20, tone: 'a' },
+          { label: 'Scenario Wt.',  val: 139, weight: 25, tone: 't' },
+        ],
+        fair: 138,
+        formula: '(0.30 × $126) + (0.25 × $148) + (0.20 × $142) + (0.25 × $139) = $138',
+        note: 'Multiples weight 25% reflects the AI-silicon peer set (AVGO, NVDA, AMD). DCF weight 30% — fabless model with light capex maps cleanly. Scenario weight 25% captures the wide custom-ASIC retention outcome distribution.',
+      },
+    },
+  },
 };
 
-const ORDER = ['NVDA', 'AMD', 'MU', 'TSM'];
+const ORDER = ['NVDA', 'AMD', 'MU', 'TSM', 'MRVL'];
 
 const NEWS = [
   { tkr: 'AMD',  date: '2026-05-13', tag: 'MI400',   src: 'CNBC',      sent: 'BUL', title: 'AMD MI400 launch confirmed for Computex 2026 — expanded HBM4 config',
@@ -750,6 +931,14 @@ const NEWS = [
     blurb: 'CoWoS allocation now key constraint on NVIDIA / AMD AI accelerator shipments.' },
   { tkr: 'TSM',  date: '2026-04-22', tag: 'AZ',      src: 'WSJ',       sent: 'NEU', title: 'TSMC Arizona Fab 2 begins N3 risk production',
     blurb: 'On schedule ahead of original 2027 target; Apple lined up as first US-made advanced-node customer.' },
+  { tkr: 'MRVL', date: '2026-05-29', tag: 'CUSTOM SI', src: 'Reuters',  sent: 'BUL', title: 'Marvell Q1 FY26 beats — data-center revenue +76% YoY on custom XPU ramp',
+    blurb: 'Custom AI silicon + optics drive the print. Management reiterates multi-generation hyperscaler design wins.' },
+  { tkr: 'MRVL', date: '2026-12-02', tag: 'M&A',     src: 'Bloomberg', sent: 'BUL', title: 'Marvell to acquire Celestial AI — photonic fabric for rack-scale interconnect',
+    blurb: 'Optical compute interconnect IP deepens the 1.6T+ roadmap and the electro-optics moat vs Broadcom.' },
+  { tkr: 'MRVL', date: '2026-05-12', tag: 'OPTICS',  src: 'The Information', sent: 'BUL', title: '1.6T PAM4 DSP ramps at two hyperscalers — Marvell extends optical lead',
+    blurb: 'Coherent + PAM4 DSP shipments inflect as 800G→1.6T transitions accelerate across AI clusters.' },
+  { tkr: 'MRVL', date: '2026-04-30', tag: 'ASIC',    src: 'CNBC',      sent: 'NEU', title: 'Hyperscaler ASIC insourcing chatter pressures Marvell shares',
+    blurb: 'Debate over how much custom silicon cloud vendors keep in-house vs outsource to Marvell/Broadcom.' },
 ];
 
 // 60-day normalized sparkline data per ticker for charts.
@@ -758,6 +947,7 @@ const SPARKS = {
   AMD:  [0.62,0.65,0.70,0.68,0.72,0.78,0.75,0.80,0.85,0.82,0.78,0.74,0.72,0.68,0.65,0.62,0.58,0.55,0.60,0.58,0.55,0.52,0.50,0.48,0.45,0.50,0.47,0.44,0.42,0.40,0.42,0.45,0.48,0.46,0.43,0.41,0.39,0.42,0.45,0.43,0.41,0.44,0.47,0.45,0.43,0.46,0.49,0.47,0.45,0.48,0.51,0.49,0.46,0.49,0.52,0.50,0.48,0.51,0.49,0.46],
   MU:   [0.50,0.52,0.48,0.55,0.58,0.60,0.62,0.65,0.63,0.66,0.62,0.65,0.68,0.70,0.72,0.68,0.72,0.74,0.71,0.74,0.78,0.75,0.79,0.82,0.78,0.81,0.84,0.80,0.83,0.86,0.83,0.85,0.88,0.84,0.86,0.83,0.85,0.88,0.85,0.87,0.84,0.86,0.89,0.86,0.88,0.85,0.87,0.90,0.87,0.89,0.86,0.88,0.91,0.88,0.90,0.87,0.89,0.92,0.89,0.91],
   TSM:  [0.42,0.44,0.46,0.45,0.48,0.51,0.49,0.52,0.55,0.53,0.56,0.58,0.55,0.59,0.62,0.60,0.63,0.66,0.64,0.67,0.70,0.68,0.71,0.74,0.72,0.75,0.73,0.76,0.78,0.75,0.78,0.80,0.77,0.80,0.82,0.79,0.82,0.84,0.81,0.83,0.85,0.82,0.84,0.86,0.83,0.85,0.87,0.84,0.86,0.88,0.85,0.87,0.89,0.86,0.88,0.90,0.87,0.89,0.91,0.88],
+  MRVL: [0.40,0.38,0.42,0.45,0.43,0.40,0.36,0.39,0.42,0.40,0.44,0.48,0.45,0.50,0.54,0.51,0.48,0.52,0.56,0.53,0.58,0.62,0.59,0.64,0.68,0.65,0.70,0.74,0.71,0.68,0.72,0.76,0.73,0.78,0.82,0.79,0.84,0.88,0.85,0.81,0.86,0.90,0.87,0.83,0.88,0.92,0.89,0.85,0.90,0.94,0.91,0.87,0.92,0.95,0.92,0.88,0.93,0.96,0.93,0.90],
 };
 
 // Generate candle data from a seed for the dashboard chart.
@@ -1134,6 +1324,78 @@ const DEEP_DIVE = {
       ],
     },
   },
+
+  // ───────── MRVL ─────────
+  MRVL: {
+    fiscalYearEnd: 'Late January / early February',
+    currency: 'USD',
+    unit: 'millions',
+    sourceNote: 'Source: Marvell quarterly "Additional Information" filings FY2021–FY2026 (GAAP)',
+    annual: {
+      periods: ['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025', 'FY2026'],
+      balancePeriods: ['FY2024', 'FY2025', 'FY2026'],
+      cashflowPeriods: ['FY2024', 'FY2025', 'FY2026'],
+      income: [
+        { label: 'Net revenue',                   v: [2969, 4462, 5920, 5508, 5767, 8195], bold: true },
+        { label: 'Cost of goods sold',            v: [1481, 2398, 2932, 3214, 3385, 4014] },
+        { label: 'Gross profit',                  v: [1488, 2064, 2988, 2294, 2382, 4181], bold: true },
+        { label: '  Gross margin %',              v: ['50.1%', '46.3%', '50.5%', '41.6%', '41.3%', '51.0%'], pct: true },
+        { label: 'Research and development',      v: [1191, 1426, 1873, 1900, 1951, 2075] },
+        { label: 'Selling, general & admin',      v: [519, 670, 818, 730, 745, 767] },
+        { label: 'Amort. of acquired intangibles',v: [36, 316, 59, 232, 406, 16] },
+        { label: 'Total operating expenses',      v: [1746, 2412, 2750, 2862, 3102, 2858] },
+        { label: 'Operating income (loss)',       v: [-258, -348, 238, -568, -720, 1323], bold: true },
+        { label: '  Operating margin %',          v: ['-8.7%', '-7.8%', '4.0%', '-10.3%', '-12.5%', '16.1%'], pct: true },
+        { label: 'Interest, tax & other, net',    v: [-19, -73, -402, -365, -165, 1347] },
+        { label: 'Net income (loss)',             v: [-277, -421, -164, -933, -885, 2670], bold: true },
+        { label: '  Net margin %',                v: ['-9.3%', '-9.4%', '-2.8%', '-16.9%', '-15.3%', '32.6%'], pct: true },
+        { label: 'EPS — Diluted',                 v: [-0.41, -0.55, -0.19, -1.08, -1.02, 3.08], bold: true },
+        { label: 'Diluted shares (millions)',     v: [670, 825, 853, 862, 866, 867] },
+      ],
+      balance: [
+        { label: 'Cash and cash equivalents',     v: [null, 948, 950] },
+        { label: 'Accounts receivable, net',      v: [null, 1028, 2187] },
+        { label: 'Inventories',                   v: [null, 1030, 1388] },
+        { label: 'Total current assets',          v: [null, 3120, 6461], bold: true },
+        { label: 'Goodwill',                      v: [null, 11587, 11062] },
+        { label: 'Acquired intangibles + other',  v: [null, 5498, 4762] },
+        { label: 'Total assets',                  v: [null, 20205, 22285], bold: true },
+        { label: 'Total current liabilities',     v: [null, 2027, 3221], bold: true },
+        { label: 'Long-term debt',                v: [null, 3934, 3971] },
+        { label: 'Other LT liabilities',          v: [null, 817, 785] },
+        { label: 'Total liabilities',             v: [null, 6778, 7977], bold: true },
+        { label: 'Total stockholders\' equity',   v: [null, 13427, 14308], bold: true },
+      ],
+      cashflow: [
+        { label: 'Net income (loss)',             v: [null, -885, 2670] },
+        { label: 'Depreciation and amortization', v: [null, 1420, 1380] },
+        { label: 'Stock-based compensation',      v: [null, 1015, 1080] },
+        { label: 'Deferred tax, WC & other, net', v: [null, 131, -3230] },
+        { label: 'Cash from operations',          v: [null, 1681, 1900], bold: true },
+        { label: 'Capex',                         v: [null, -285, -340] },
+        { label: 'Free cash flow',                v: [null, 1396, 1560], bold: true, highlight: true },
+      ],
+      segmentRev: [
+        { label: 'Data Center',                   v: [2675, 3567, 6070] },
+        { label: 'Enterprise Networking',         v: [1168, 845, 740] },
+        { label: 'Carrier Infrastructure',        v: [1049, 462, 450] },
+        { label: 'Consumer',                      v: [466, 480, 490] },
+        { label: 'Automotive / Industrial',       v: [150, 413, 445] },
+      ],
+    },
+    quarterly: {
+      periods: ['Q1·FY25', 'Q2·FY25', 'Q3·FY25', 'Q4·FY25', 'Q1·FY26', 'Q2·FY26', 'Q3·FY26', 'Q4·FY26'],
+      income: [
+        { label: 'Net revenue',       v: [1160.9, 1272.9, 1516.1, 1817.4, 1895.3, 2006.1, 2074.5, 2218.7], bold: true },
+        { label: 'Cost of goods sold',v: [633.1, 685.3, 1166.7, 900.0, 942.9, 995.5, 1004.7, 1070.8] },
+        { label: 'Gross profit',      v: [527.8, 587.6, 349.4, 917.4, 952.4, 1010.6, 1069.8, 1147.9] },
+        { label: '  GM %',            v: ['45.5%', '46.2%', '23.0%', '50.5%', '50.2%', '50.4%', '51.6%', '51.7%'], pct: true },
+        { label: 'Operating income (loss)', v: [-152.3, -100.4, -702.8, 235.2, 270.6, 290.1, 357.8, 404.4] },
+        { label: 'Net income (loss)', v: [-215.6, -193.3, -676.3, 200.2, 177.9, 194.8, 1901.3, 396.1], bold: true },
+        { label: 'EPS — Diluted',     v: [-0.25, -0.22, -0.78, 0.23, 0.20, 0.22, 2.20, 0.46] },
+      ],
+    },
+  },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -1337,6 +1599,55 @@ const NARRATIVE = {
       { date: '2026-H2',    tag: 'AZ',       note: 'Arizona Phase 2 (N3) production start. AAPL first US-made customer.' },
     ],
   },
+
+  MRVL: {
+    headline: 'The custom-silicon and optical backbone of the AI data center.',
+    rating: 'BUY · CONVICTION MEDIUM-HIGH',
+    timeHorizon: '18–24 months',
+    thesis: {
+      oneLiner: 'Marvell sells the picks-and-shovels of AI infrastructure: hyperscaler custom XPUs and the optical interconnect that wires clusters together.',
+      paragraphs: [
+        'Marvell is a two-engine AI story: custom compute silicon (XPUs/ASICs co-designed with hyperscalers such as Amazon Trainium, Microsoft Maia, and Google Axion) and the electro-optics that move data between accelerators (PAM4 and coherent DSPs scaling 800G → 1.6T). FY2026 revenue of $8.2B (+42% YoY) and a swing to GAAP profitability (+$2.67B net income, aided by a deferred-tax benefit) reflect data-center revenue compounding while the legacy segments stabilize.',
+        'The franchise was built by acquisition — Inphi (electro-optics) and Innovium (switching) folded into a full data-center networking portfolio — which loads the balance sheet with ~$11B of goodwill and drove years of GAAP losses from intangible amortization. Non-GAAP economics are far healthier (operating margin ~30% and rising), and free cash flow (~$1.5B FY26) is the cleaner lens on the business.',
+        'The bear case is structural: hyperscalers could insource more custom silicon, and Broadcom is a formidable competitor in both custom ASIC and optics. The bull case is that AI cluster scale-out keeps custom-XPU and 1.6T optical demand growing faster than insourcing can erode it.',
+      ],
+    },
+    business: {
+      whatItDoes: 'Designs custom AI silicon (XPUs/ASICs for hyperscalers), optical and copper interconnect DSPs, Ethernet switches, storage controllers, and embedded processors. Fabless — manufactures at TSMC (5nm/3nm).',
+      revenueMix: 'Data Center ~74% of FY26 revenue ($6.1B) and the growth engine; Enterprise Networking, Carrier Infrastructure, Consumer and Automotive/Industrial make up the rest and are stabilizing.',
+      whoBuys: 'Hyperscalers (Amazon, Microsoft, Google, Meta) for custom XPUs and optics; networking OEMs (Cisco, Arista); storage and carrier equipment vendors; automotive/industrial via embedded Ethernet.',
+      pricingPower: 'Custom-silicon programs are multi-year, high-switching-cost design wins. Optical DSP carries strong margins but faces Broadcom price competition as 1.6T volumes scale. Non-GAAP gross margin ~60%.',
+    },
+    drivers: [
+      { label: 'Custom XPU ramp',          tone: 'g', body: 'Multiple hyperscaler custom-compute programs (Trainium, Maia, Axion) moving from design win to volume — the largest growth vector.' },
+      { label: '800G → 1.6T optics',        tone: 'g', body: 'PAM4 + coherent DSP shipments inflect as AI clusters transition to 1.6T. Marvell holds the optical-DSP lead.' },
+      { label: 'Celestial AI acquisition',  tone: 'g', body: 'Photonic-fabric IP (announced Dec 2025) extends the rack-scale optical interconnect roadmap and the moat vs Broadcom.' },
+      { label: 'Margin recovery',           tone: 'a', body: 'As intangible amortization rolls off and data-center mix rises, GAAP profitability and non-GAAP margins expand.' },
+      { label: 'Legacy stabilization',      tone: 'a', body: 'Enterprise networking and carrier have been demand-soft; a bottoming here would add a second growth leg.' },
+    ],
+    competitive: [
+      ['Custom XPU / ASIC',      'TRACK', 'Co-designs hyperscaler AI silicon; #2 to Broadcom in merchant custom compute. Deep SerDes + packaging IP.'],
+      ['Optical DSP (PAM4/coherent)','WIN', 'Leadership in 800G→1.6T optical DSP — the interconnect backbone of AI clusters.'],
+      ['Ethernet switching',     'TRACK', 'Innovium-derived switching competes with Broadcom Tomahawk in AI fabrics.'],
+      ['Hyperscaler insourcing', 'WATCH', 'The key swing factor — how much custom silicon cloud vendors keep fully in-house.'],
+      ['Broadcom (AVGO)',        'WATCH', 'The dominant competitor across custom ASIC and optics; pricing and scale pressure.'],
+    ],
+    bear: {
+      title: 'What could break the thesis',
+      points: [
+        'Hyperscaler ASIC insourcing: if cloud vendors fully internalize custom silicon, the design-win pipeline that drives data-center growth compresses.',
+        'Broadcom competition: AVGO has greater scale in both custom ASIC and optics; sustained price pressure could cap Marvell margins.',
+        'Customer concentration: a small number of hyperscalers drive the majority of data-center revenue — program timing creates lumpiness.',
+        'Valuation: at ~28× forward earnings on a GAAP-loss history, any data-center growth disappointment magnifies the drawdown.',
+      ],
+    },
+    catalysts: [
+      { date: '2026-05-29', tag: 'EARNINGS', note: 'Q1 FY26 results — custom XPU + optics data-center growth, margin trajectory.' },
+      { date: '2026-08-28', tag: 'EARNINGS', note: 'Q2 FY26 results — 1.6T optics ramp, ASIC program updates.' },
+      { date: '2026-Q4',    tag: 'CUSTOM SI', note: 'New hyperscaler custom-compute design-win announcements.' },
+      { date: '2026-12-02', tag: 'M&A',      note: 'Celestial AI acquisition close — photonic fabric integration.' },
+    ],
+  },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -1355,10 +1666,11 @@ const LIVE = {
     AMD:  'NASDAQ:AMD',
     MU:   'NASDAQ:MU',
     TSM:  'NYSE:TSM',
+    MRVL: 'NASDAQ:MRVL',
   },
   // Google News RSS is far more reliable than Yahoo's (mostly-dead) RSS and
   // returns standard <item> nodes. Yahoo kept as a secondary source.
-  newsQuery: { NVDA: 'NVIDIA NVDA', AMD: 'AMD Advanced Micro Devices', MU: 'Micron MU', TSM: 'TSMC Taiwan Semiconductor' },
+  newsQuery: { NVDA: 'NVIDIA NVDA', AMD: 'AMD Advanced Micro Devices', MU: 'Micron MU', TSM: 'TSMC Taiwan Semiconductor', MRVL: 'Marvell MRVL' },
   newsURL: function (sym) {
     const q = (this.newsQuery[sym] || sym) + ' stock semiconductor';
     return 'https://news.google.com/rss/search?q=' + encodeURIComponent(q) + '&hl=en-US&gl=US&ceid=US:en';

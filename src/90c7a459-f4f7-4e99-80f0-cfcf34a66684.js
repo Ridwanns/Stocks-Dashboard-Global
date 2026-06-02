@@ -6,13 +6,13 @@
 
 (function initLiveFeed(){
   'use strict';
-  const SYMBOLS = window.ORDER || ['NVDA','AMD','MU','TSM'];
+  const SYMBOLS = window.ORDER || ['NVDA','AMD','MU','TSM','MRVL'];
   // Yahoo Finance symbols (ADR tickers)
-  const YF_MAP = { NVDA:'NVDA', AMD:'AMD', MU:'MU', TSM:'TSM' };
+  const YF_MAP = { NVDA:'NVDA', AMD:'AMD', MU:'MU', TSM:'TSM', MRVL:'MRVL' };
   // TradingView symbols for the embedded chart widget
   window.LIVE = Object.assign(window.LIVE||{},{
     active:false, lastUpdate:null, errors:[], feedStatus:'INIT',
-    tradingViewSymbols:{ NVDA:'NASDAQ:NVDA', AMD:'NASDAQ:AMD', MU:'NASDAQ:MU', TSM:'NYSE:TSM' },
+    tradingViewSymbols:{ NVDA:'NASDAQ:NVDA', AMD:'NASDAQ:AMD', MU:'NASDAQ:MU', TSM:'NYSE:TSM', MRVL:'NASDAQ:MRVL' },
   });
   window.CANDLES = window.CANDLES || {};
 

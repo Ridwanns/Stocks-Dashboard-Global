@@ -136,10 +136,10 @@ window.fmtMcap=fmtMcap;
     /* ── Refactor: top ticker row (NVDA · AMD · MU · TSM) — uniform grid ── */
     .gt-ticker-row {
       display: grid !important;
-      grid-template-columns: repeat(4, minmax(0,1fr)) !important;
-      gap: 14px !important;
+      grid-template-columns: repeat(5, minmax(0,1fr)) !important;
+      gap: 12px !important;
       flex-wrap: nowrap !important;
-      min-width: 480px;
+      min-width: 560px;
     }
     .gt-ticker-row > button {
       display: grid !important;
@@ -852,7 +852,7 @@ function TabOverview({t,sym,setSym}){
       {/* 4-stock comparison */}
       <Panel kicker="Market overview · AI chip basket" title="All 4 positions at a glance" accent={palette.a}
         right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:GT.green}}><span style={{width:5,height:5,borderRadius:'50%',background:GT.green,display:'inline-block'}}/>LIVE</span>}>
-        <div className="gt-overview-cards" style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:18}}>
+        <div className="gt-overview-cards" style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:14}}>
           {ORDER.map(s=>(
             <StockOverviewCard key={s} sym={s} active={sym===s} onClick={()=>setSym(s)}/>
           ))}
