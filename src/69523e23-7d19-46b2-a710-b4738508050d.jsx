@@ -518,15 +518,18 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   camera.position.set(0, 14, 290);
   camera.lookAt(0, 0, 0);
 
-  scene.add(new THREE.AmbientLight(0x5a6aa0, 0.9));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.25); sun.position.set(-0.7, 0.45, 1); scene.add(sun);
+  // Cool, dim lighting so the realistic photo doesn't blow out to harsh white.
+  scene.add(new THREE.AmbientLight(0x49557f, 0.62));
+  const sun = new THREE.DirectionalLight(0xbfd0ff, 0.82); sun.position.set(-0.7, 0.45, 1); scene.add(sun);
 
   const R = 92;
   const LON_OFFSET = 0; // tweak (deg) if a real texture's Greenwich seam is shifted
   const earthGroup = new THREE.Group(); earthGroup.rotation.z = 0.16; scene.add(earthGroup);
   // Real equirectangular Earth texture when available (markers then line up
-  // with the actual continents); procedural fallback otherwise.
-  const earthMat = new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), roughness: 1, metalness: 0.05 });
+  // with the actual continents); procedural fallback otherwise. The material
+  // color multiplies the map → a muted indigo tint darkens the bright oceans/
+  // clouds so the globe reads as part of the cyber-noir theme, not a stock photo.
+  const earthMat = new THREE.MeshStandardMaterial({ map: makePlanetTexture('earth'), color: new THREE.Color(0x8390c4), roughness: 1, metalness: 0.08 });
   if (window.__EARTH_TEX) {
     try {
       new THREE.TextureLoader().load(window.__EARTH_TEX, (tex) => {
@@ -538,6 +541,10 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   }
   const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 64), earthMat);
   earthGroup.add(earth);
+  // Subtle accent-tinted night-side fill so the dark hemisphere glows faintly
+  // in-theme instead of going flat black.
+  const nightFill = new THREE.Mesh(new THREE.SphereGeometry(R * 1.001, 48, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentA), transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
+  earthGroup.add(nightFill);
   // graticule wireframe for a "data globe" feel
   const grid = new THREE.Mesh(new THREE.SphereGeometry(R * 1.004, 36, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(accentB), wireframe: true, transparent: true, opacity: 0.07, depthWrite: false }));
   earthGroup.add(grid);

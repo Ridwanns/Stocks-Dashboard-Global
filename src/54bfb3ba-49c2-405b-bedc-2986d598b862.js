@@ -620,11 +620,12 @@ const GT_ANIM_CSS = `
 .gt-hud-scan { position: absolute; left: 0; right: 0; top: 0; height: 2px; animation: gtHudScanMove 2.6s ease-in-out infinite; }
 @keyframes gtHudScanMove { 0% { top: 0; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 
-/* Stable lock-on card (top-left of the globe). Re-animates on country change. */
+/* Stable lock-on card (top-left of the globe). Glassy + theme-tinted. */
 .gt-globe-card {
   position: absolute; left: 14px; top: 14px; min-width: 160px; padding: 11px 14px 13px;
-  background: rgba(8,12,24,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border: 1px solid; border-radius: 5px; overflow: hidden; z-index: 4;
+  background: linear-gradient(135deg, rgba(20,18,46,.42), rgba(10,16,34,.34));
+  backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid; border-radius: 8px; overflow: hidden; z-index: 4;
   animation: gtCardIn .5s cubic-bezier(.2,.85,.3,1) both;
 }
 @keyframes gtCardIn { from { opacity: 0; transform: translateY(-7px) scale(.9); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
@@ -637,19 +638,21 @@ const GT_ANIM_CSS = `
 .gt-stars-css {
   position: absolute; inset: 0; pointer-events: none;
   background-image:
-    radial-gradient(1.3px 1.3px at 25px 35px, rgba(255,255,255,.95), transparent),
-    radial-gradient(1px 1px at 120px 80px, rgba(199,186,255,.85), transparent),
-    radial-gradient(1px 1px at 200px 150px, rgba(255,255,255,.75), transparent),
-    radial-gradient(1.5px 1.5px at 80px 205px, rgba(34,211,238,.7), transparent),
-    radial-gradient(1px 1px at 262px 42px, rgba(255,255,255,.85), transparent),
-    radial-gradient(1px 1px at 158px 262px, rgba(255,255,255,.65), transparent),
-    radial-gradient(1.3px 1.3px at 300px 220px, rgba(139,92,246,.75), transparent),
-    radial-gradient(1px 1px at 42px 292px, rgba(255,255,255,.75), transparent);
-  background-size: 340px 340px; background-repeat: repeat;
-  opacity: .5; animation: gtTwinkle 6s ease-in-out infinite;
+    radial-gradient(1.6px 1.6px at 25px 35px, rgba(255,255,255,1), transparent),
+    radial-gradient(1.4px 1.4px at 120px 80px, rgba(199,186,255,.95), transparent),
+    radial-gradient(1.3px 1.3px at 200px 150px, rgba(255,255,255,.9), transparent),
+    radial-gradient(1.8px 1.8px at 80px 205px, rgba(34,211,238,.85), transparent),
+    radial-gradient(1.3px 1.3px at 262px 42px, rgba(255,255,255,.95), transparent),
+    radial-gradient(1.4px 1.4px at 158px 262px, rgba(255,255,255,.8), transparent),
+    radial-gradient(1.7px 1.7px at 300px 220px, rgba(139,92,246,.9), transparent),
+    radial-gradient(1.3px 1.3px at 42px 292px, rgba(255,255,255,.88), transparent),
+    radial-gradient(1.2px 1.2px at 340px 120px, rgba(199,186,255,.8), transparent),
+    radial-gradient(1.1px 1.1px at 150px 30px, rgba(255,255,255,.7), transparent);
+  background-size: 300px 300px; background-repeat: repeat;
+  opacity: .75; animation: gtTwinkle 6s ease-in-out infinite;
 }
-.gt-stars-css-2 { background-size: 230px 230px; background-position: 70px 40px; opacity: .34; animation-duration: 9s; animation-delay: -3s; }
-@keyframes gtTwinkle { 0%,100% { opacity: .5; } 50% { opacity: .82; } }
+.gt-stars-css-2 { background-size: 200px 200px; background-position: 70px 40px; opacity: .5; animation-duration: 9s; animation-delay: -3s; }
+@keyframes gtTwinkle { 0%,100% { opacity: .72; } 50% { opacity: 1; } }
 
 /* ════════ Custom chart hover tooltip (Module 5) ════════ */
 .gt-chart-tip {

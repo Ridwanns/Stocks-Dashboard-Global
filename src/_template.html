@@ -423,9 +423,12 @@
 </style>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Base dark lives on <html> so the fixed z-index:-1 Aurora starfield is NOT
+       hidden behind an opaque <body> background (that gotcha killed the stars). */
+    html { background: #0a0e1c; }
     html, body { width: 100%; max-width: 100%; min-height: 100%; overflow-x: hidden; }
     body {
-      background: #0a0e1c;
+      background: transparent;
       color: #eef0ff;
       font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
       overflow-x: hidden;
