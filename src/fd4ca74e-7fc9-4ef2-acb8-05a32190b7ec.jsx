@@ -2582,7 +2582,16 @@ function YahooNewsHub({sym}){
     let cancelled=false;
     setStatus('loading');
     async function fetch_(){
-      // Try Google News RSS (reliable) first, then Yahoo, each across every proxy.
+      // PRIMARY: Yahoo Finance JSON search via the live feed's proven proxy
+      // (same host/proxy that powers the working price feed → not CORS-blocked).
+      try{
+        if(window.LiveFeed&&window.LiveFeed.fetchNews){
+          const live=await window.LiveFeed.fetchNews(sym);
+          if(cancelled) return;
+          if(live&&live.length){ setItems(live.slice(0,12)); setStatus('ok'); setLastFetch(new Date()); return; }
+        }
+      }catch(e){}
+      // FALLBACK: Google News / Yahoo RSS across every proxy.
       const urls=[];
       if(window.LIVE&&window.LIVE.newsURL) urls.push(window.LIVE.newsURL(sym));
       if(window.LIVE&&window.LIVE.yahooNewsURL) urls.push(window.LIVE.yahooNewsURL(sym));

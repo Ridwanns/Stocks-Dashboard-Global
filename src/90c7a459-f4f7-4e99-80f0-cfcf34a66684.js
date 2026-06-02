@@ -58,6 +58,25 @@
     return null;
   }
 
+  // ── Yahoo Finance news (JSON) — SAME host + proxy that the price feed proves
+  // working, so it isn't blocked like the old RSS endpoints were. ──────────
+  async function fetchNews(sym) {
+    const yfSym = YF_MAP[sym] || sym;
+    const url = 'https://query1.finance.yahoo.com/v1/finance/search?q=' +
+      encodeURIComponent(yfSym) + '&quotesCount=0&newsCount=15&enableFuzzyQuery=false';
+    const json = await fetchWithProxy(url, 8000);
+    if (!json || !json.news || !json.news.length) return [];
+    return json.news.map(function (n) {
+      return {
+        title: n.title || '',
+        link: n.link || '#',
+        publisher: n.publisher || '',
+        date: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : '',
+        desc: (n.publisher || '') + (n.relatedTickers && n.relatedTickers.length ? ' · ' + n.relatedTickers.slice(0, 4).join(', ') : ''),
+      };
+    }).filter(function (x) { return x.title; });
+  }
+
   // ── Yahoo Finance chart endpoint ──────────────────────────────────
   async function fetchChart(sym, range, interval) {
     range = range || '6mo'; interval = interval || '1d';
@@ -569,5 +588,5 @@
   });
 
   // Expose API
-  window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchIndices:fetchIndices, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };
+  window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchIndices:fetchIndices, fetchNews:fetchNews, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };
 })();
