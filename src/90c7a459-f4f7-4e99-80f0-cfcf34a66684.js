@@ -86,6 +86,43 @@
     return fetchWithProxy(url);
   }
 
+  // ── Extended-hours quote (pre-market / after-hours / overnight) ──────
+  // Yahoo's meta has no pre/postMarketPrice, but the intraday chart with
+  // includePrePost=true returns the extended candles + currentTradingPeriod
+  // (pre/regular/post boundaries) — enough to derive the running session price.
+  async function fetchExtended(sym) {
+    const yfSym = YF_MAP[sym] || sym;
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + yfSym +
+      '?range=1d&interval=5m&includePrePost=true';
+    const json = await fetchWithProxy(url, 6500);
+    const result = json && json.chart && json.chart.result && json.chart.result[0];
+    if (!result) return null;
+    const meta = result.meta || {};
+    const ts = result.timestamp || [];
+    const q = (result.indicators && result.indicators.quote && result.indicators.quote[0]) || {};
+    // last valid traded price + its timestamp (the most recent print, any session)
+    let lastPx = null, lastT = null;
+    for (let i = ts.length - 1; i >= 0; i--) {
+      if (q.close && typeof q.close[i] === 'number' && q.close[i] > 0) { lastPx = q.close[i]; lastT = ts[i]; break; }
+    }
+    const regPx = meta.regularMarketPrice;
+    const cp = meta.currentTradingPeriod || {};
+    const nowS = Math.floor(Date.now() / 1000);
+    let session = 'CLOSED';
+    if (cp.pre && cp.regular && cp.post) {
+      if (nowS >= cp.pre.start && nowS < cp.regular.start) session = 'PRE';
+      else if (nowS >= cp.regular.start && nowS < cp.regular.end) session = 'REG';
+      else if (nowS >= cp.regular.end && nowS < cp.post.end) session = 'AFT';
+      else session = 'OVN'; // overnight / weekend (between post close and next pre)
+    }
+    // Running extended price is meaningful outside the regular session.
+    let extPx = (session === 'REG') ? null : lastPx;
+    let chgPct = (extPx && regPx) ? ((extPx / regPx) - 1) * 100 : 0;
+    // sanity guard: drop implausible thin-print / split-mismatched candles, keep real earnings moves
+    if (extPx && (!(extPx > 0) || !(regPx > 0) || Math.abs(chgPct) > 40)) { extPx = null; chgPct = 0; }
+    return { session: session, price: extPx ? +extPx.toFixed(2) : null, regPx: regPx, chgPct: +chgPct.toFixed(2), t: lastT ? lastT * 1000 : Date.now() };
+  }
+
   function parseChart(json) {
     var result = json && json.chart && json.chart.result && json.chart.result[0];
     if (!result) return null;
@@ -504,6 +541,16 @@
       }
     }
 
+    // Extended-hours (pre/after/overnight) running price — fetched in parallel,
+    // attached to each ticker as `.ext` for the running-price badge in the UI.
+    Promise.all(SYMBOLS.map(function (s) {
+      return fetchExtended(s).then(function (ext) {
+        if (ext && window.TICKERS[s]) window.TICKERS[s].ext = ext;
+      }).catch(function () {});
+    })).then(function () {
+      window.dispatchEvent(new CustomEvent('live-tick', { detail: { ext: true, time: Date.now() } }));
+    });
+
     if (updated > 0) {
       window.LIVE.active = true;
       window.LIVE.lastUpdate = Date.now();
@@ -588,5 +635,5 @@
   });
 
   // Expose API
-  window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchIndices:fetchIndices, fetchNews:fetchNews, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };
+  window.LiveFeed = { start:startFeed, stop:stopFeed, fetchAll:fetchAll, fetchIndices:fetchIndices, fetchNews:fetchNews, fetchExtended:fetchExtended, fetchChart:fetchChart, parseChart:parseChart, computeAllTechnicals:computeAllTechnicals };
 })();

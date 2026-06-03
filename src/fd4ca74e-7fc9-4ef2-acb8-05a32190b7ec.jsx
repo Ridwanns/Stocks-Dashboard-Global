@@ -324,6 +324,27 @@ const TAB_META = {
 
 const GROUP_COLORS = { market:'#8b5cf6', fundamental:'#22d3ee', quant:'#f472b6' };
 
+// ── Extended-hours running price badge (pre-market / after-hours / overnight) ──
+function ExtBadge({ext,big}){
+  if(!ext||ext.session==='REG'||ext.price==null) return null;
+  const up=ext.chgPct>=0;
+  const c=up?GT.green:GT.red;
+  const LABEL={PRE:'PRE-MKT',AFT:'AFT-HRS',OVN:'OVERNIGHT',CLOSED:'CLOSED'}[ext.session]||ext.session;
+  const ICON={PRE:'☀',AFT:'☾',OVN:'☾',CLOSED:'●'}[ext.session]||'●';
+  return(
+    <span className="gt-ext-badge" title={`${LABEL} session`} style={{
+      display:'inline-flex',alignItems:'center',gap:big?7:5,
+      fontFamily:GT.fontMono,fontSize:big?11:8.5,fontWeight:700,letterSpacing:0.4,
+      padding:big?'4px 9px':'2px 6px',borderRadius:6,
+      border:`1px solid ${c}44`,background:`${c}14`,color:c,whiteSpace:'nowrap',lineHeight:1.1,
+    }}>
+      <span style={{opacity:0.85,letterSpacing:0.8}}>{ICON} {LABEL}</span>
+      <b style={{color:GT.text,fontVariantNumeric:'tabular-nums'}}>${ext.price.toFixed(2)}</b>
+      <span style={{fontVariantNumeric:'tabular-nums'}}>{up?'▲':'▼'}{Math.abs(ext.chgPct).toFixed(2)}%</span>
+    </span>
+  );
+}
+
 function QuoteHead({t,tab,setTab}){
   const {palette,headline}=useTheme();
   const up=t.chg>=0;
@@ -350,6 +371,8 @@ function QuoteHead({t,tab,setTab}){
             <span className="gt-px-pulse" style={{fontFamily:GT.fontMono,fontSize:14,color:c,fontWeight:700}} key={'chg-'+t.sym+'-'+pulseKey}>
               {up?'▲':'▼'} {up?'+':''}{t.chg.toFixed(2)} ({up?'+':''}{t.chgPct.toFixed(2)}%)
             </span>
+            {/* Pre-market / after-hours / overnight running price */}
+            <ExtBadge ext={t.ext} big/>
             <span style={{display:'inline-flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
               <LiveClock tz="America/New_York" label="NY" open="09:30" close="16:00"/>
               <LiveClock tz="Europe/London" label="LDN" open="08:00" close="16:30"/>
@@ -687,6 +710,17 @@ function StockOverviewCard({sym,active,onClick}){
         <MiniSpark spark={spark.slice(-30)} up={up} width={240} height={38} responsive/>
         <span className="gt-stk-spark-label">1M TREND</span>
       </div>
+      {/* Extended-hours running price (pre/after/overnight) — compact */}
+      {(()=>{const e=tk.ext; if(!e||e.session==='REG'||e.price==null) return null;
+        const eu=e.chgPct>=0, ec=eu?GT.green:GT.red;
+        const lbl={PRE:'PRE',AFT:'AFT',OVN:'OVN',CLOSED:'CLS'}[e.session]||e.session;
+        const ic={PRE:'☀',AFT:'☾',OVN:'☾',CLOSED:'●'}[e.session]||'●';
+        return(<div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:5,fontFamily:GT.fontMono,fontSize:8.5,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>
+          <span style={{color:'rgba(160,172,200,.85)',letterSpacing:0.6}}>{ic} {lbl}</span>
+          <span style={{color:GT.text}}>${e.price.toFixed(2)}</span>
+          <span style={{color:ec}}>{eu?'▲':'▼'}{Math.abs(e.chgPct).toFixed(2)}%</span>
+        </div>);
+      })()}
       {/* Row 3: metrics — equal 4 cells */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
         {[
@@ -849,8 +883,8 @@ function TabOverview({t,sym,setSym}){
   const {palette,headline,density}=useTheme();
   return(
     <div style={{display:'flex',flexDirection:'column',gap:density.gap}}>
-      {/* 4-stock comparison */}
-      <Panel kicker="Market overview · AI chip basket" title="All 4 positions at a glance" accent={palette.a}
+      {/* multi-stock comparison */}
+      <Panel kicker="Market overview · AI chip basket" title={`All ${ORDER.length} positions at a glance`} accent={palette.a}
         right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:GT.green}}><span style={{width:5,height:5,borderRadius:'50%',background:GT.green,display:'inline-block'}}/>LIVE</span>}>
         <div className="gt-overview-cards" style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:14}}>
           {ORDER.map(s=>(
@@ -3005,6 +3039,15 @@ function Dashboard(){
                     <span style={{fontFamily:GT.fontMono,fontSize:12,color:GT.text,fontVariantNumeric:'tabular-nums'}}>${tk.px.toFixed(2)}</span>
                     <span style={{fontFamily:GT.fontMono,fontSize:9.5,color:c,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{tk.chg>=0?'▲':'▼'} {tk.chg>=0?'+':''}{tk.chgPct.toFixed(2)}%</span>
                   </div>
+                  {(()=>{const e=tk.ext; if(!e||e.session==='REG'||e.price==null) return null;
+                    const eu=e.chgPct>=0, ec=eu?GT.green:GT.red;
+                    const lbl={PRE:'PRE',AFT:'AFT',OVN:'OVN',CLOSED:'CLS'}[e.session]||e.session;
+                    return(<div style={{display:'flex',alignItems:'center',gap:4,marginTop:1,fontFamily:GT.fontMono,fontSize:8,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>
+                      <span style={{color:'rgba(160,172,200,.8)'}}>☾{lbl}</span>
+                      <span style={{color:GT.text}}>${e.price.toFixed(2)}</span>
+                      <span style={{color:ec}}>{eu?'▲':'▼'}{Math.abs(e.chgPct).toFixed(1)}%</span>
+                    </div>);
+                  })()}
                 </button>
               );
             })}

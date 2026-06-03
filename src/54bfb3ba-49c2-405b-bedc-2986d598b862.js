@@ -463,6 +463,7 @@ const GT_ANIM_CSS = `
 
 @media (prefers-reduced-motion: reduce) {
   .gt-tab-stagger > * > *, .gt-grow-bar, .gt-fade-up, .gt-stagger > * { animation: none !important; opacity: 1 !important; }
+  .gt-ext-badge { animation: none !important; }
 }
 
 /* SVG draw helpers */
@@ -494,9 +495,15 @@ const GT_ANIM_CSS = `
 }
 
 /* Mobile breakpoint — full single-column. */
+/* ════════ Extended-hours (pre-market / after-hours / overnight) badge ════════ */
+.gt-ext-badge { animation: gtExtBreathe 2.6s ease-in-out infinite; vertical-align: middle; }
+@keyframes gtExtBreathe { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } 50% { box-shadow: 0 0 9px 0 currentColor; } }
+
 @media (max-width: 760px) {
   /* dashboard frame: smaller paddings */
   .gt-dash-frame { border-radius: 0 !important; }
+  /* Extended-hours badge: shrink + let it wrap under the price */
+  .gt-quote-head .gt-ext-badge { font-size: 10px !important; padding: 3px 7px !important; }
   .gt-quote-head { padding: 18px 18px 0 !important; }
   .gt-quote-name { font-size: 48px !important; letter-spacing: -1.2px !important; }
   .gt-quote-px   { font-size: 30px !important; }
@@ -552,6 +559,7 @@ const GT_ANIM_CSS = `
   .gt-quote-name { font-size: 36px !important; }
   .gt-quote-px   { font-size: 24px !important; }
   .gt-kpi-grid   { grid-template-columns: 1fr !important; }
+  .gt-ext-badge  { font-size: 9px !important; gap: 4px !important; padding: 2px 6px !important; animation: none !important; }
 }
 
 /* ════════ Cinematic 3D loading screen ════════ */

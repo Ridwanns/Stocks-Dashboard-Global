@@ -261,8 +261,9 @@ function Hero() {
             The long memo on{' '}
             <span style={{ color: GT.green }}>NVIDIA</span>,{' '}
             <span style={{ color: GT.red }}>AMD</span>,{' '}
-            <span style={{ color: palette.b }}>Micron</span>, and{' '}
-            <span style={{ color: GT.amber }}>Taiwan Semi</span> — fundamentals,
+            <span style={{ color: palette.b }}>Micron</span>,{' '}
+            <span style={{ color: GT.amber }}>Taiwan Semi</span>, and{' '}
+            <span style={{ color: '#2a7de1' }}>Marvell</span> — fundamentals,
             technicals, moat, and three-scenario price paths, published weekly.
           </Reveal>
 
@@ -286,7 +287,7 @@ function Hero() {
               borderTop: `1px dashed ${palette.edge}`, paddingTop: 22,
             }}>
               {[
-                ['4', 'Core tickers'],
+                ['5', 'Core tickers'],
                 ['52', 'Weekly memos'],
                 ['25+', 'Indicators'],
                 ['67%', 'Hit rate · 24M'],
@@ -419,11 +420,12 @@ function About() {
                     Semiconductor deep-dive analyst.
                   </div>
                   <div style={{ fontSize: 14, color: 'rgba(148,163,184,.9)', marginTop: 12, lineHeight: 1.65 }}>
-                    I cover four names —{' '}
+                    I cover five names —{' '}
                     <span style={{ color: GT.green, fontWeight: 600 }}>NVDA</span>,{' '}
                     <span style={{ color: GT.red, fontWeight: 600 }}>AMD</span>,{' '}
-                    <span style={{ color: palette.b, fontWeight: 600 }}>MU</span>, and{' '}
-                    <span style={{ color: GT.amber, fontWeight: 600 }}>TSM</span>{' '}
+                    <span style={{ color: palette.b, fontWeight: 600 }}>MU</span>,{' '}
+                    <span style={{ color: GT.amber, fontWeight: 600 }}>TSM</span>, and{' '}
+                    <span style={{ color: '#2a7de1', fontWeight: 600 }}>MRVL</span>{' '}
                     — and I publish a long memo every Sunday. The format is the same each week:
                     business model, Q-over-Q financial deltas, technical levels worth watching,
                     and a three-scenario 12-month price path with explicit probabilities.
@@ -682,7 +684,7 @@ function Contact() {
               {[
                 ['Email',    'ridwan.finance@email.com',  'Best for collaboration & long-form questions.'],
                 ['Location', 'Jakarta · Indonesia',        'GMT+7 — replies usually within 12 hours.'],
-                ['Focus',    'NVDA · AMD · MU · TSM',      'Four names, done well. No other coverage.'],
+                ['Focus',    'NVDA · AMD · MU · TSM · MRVL', 'Five names, done well. No other coverage.'],
                 ['Note',     'Not financial advice',       'For information only. Do your own work.'],
               ].map(([l, v, sub], i) => (
                 <div key={i} style={{
