@@ -389,6 +389,17 @@ function toneColor(tone) {
 // first paint. Components opt in via className OR via the React
 // helpers below (NumberFlicker, AnimGate).
 const GT_ANIM_CSS = `
+/* ════════ Global scrollbars — match the dark glass theme (kill bright native bars) ════════ */
+* { scrollbar-width: thin; scrollbar-color: rgba(139,92,246,.42) rgba(12,16,34,.55); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(12,16,34,.5); border-radius: 10px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(139,92,246,.5), rgba(99,102,241,.42));
+  border-radius: 10px; border: 2px solid rgba(12,16,34,.5); background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,.75); }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { width: 0; height: 0; display: none; }
 @keyframes gtFadeUp {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -764,6 +775,11 @@ const GT_ANIM_CSS = `
   .gt-scenarios-3 { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .gt-scenarios-3 > * { flex: 0 0 78% !important; border-right: 1px dashed rgba(255,255,255,.08) !important; }
   .gt-scenarios-3 .gt-scn-px { font-size: 40px !important; }
+  /* Hide the native scrollbar on these horizontal nav/card strips (swipeable, with their own indicators) */
+  .gt-fin-sections, .gt-dd-layout > div:first-child, .gt-scenarios-3 { scrollbar-width: none; }
+  .gt-fin-sections::-webkit-scrollbar,
+  .gt-dd-layout > div:first-child::-webkit-scrollbar,
+  .gt-scenarios-3::-webkit-scrollbar { display: none; }
   /* Global market globe stacks: Earth on top, index list below */
   .gt-globe-wrap { grid-template-columns: 1fr !important; }
   .gt-globe-canvas { min-height: 280px !important; }
