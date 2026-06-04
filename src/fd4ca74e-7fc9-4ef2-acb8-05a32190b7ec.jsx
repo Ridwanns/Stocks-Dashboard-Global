@@ -267,7 +267,7 @@ window.fmtMcap=fmtMcap;
   document.head.appendChild(s);
 })();
 
-const TABS = ['Overview','Chart','Technical','Financials','Deep Dive','News','Risk & Scenario','Quant Model'];
+const TABS = ['Overview','Chart','Compare','Technical','Financials','Deep Dive','News','Risk & Scenario','Quant Model'];
 
 // ── Live clock ───────────────────────────────────────────────────
 function useLiveClock(tz='America/New_York') {
@@ -314,6 +314,7 @@ function LiveClock({tz,label,open,close}){
 const TAB_META = {
   'Overview':        { group:'market' },
   'Chart':           { group:'market' },
+  'Compare':         { group:'market' },
   'Technical':       { group:'market' },
   'Financials':      { group:'fundamental' },
   'Deep Dive':       { group:'fundamental' },
@@ -395,9 +396,9 @@ function QuoteHead({t,tab,setTab}){
       <div className="gt-tabs-row" style={{display:'flex',gap:0,marginTop:2,position:'relative'}}>
         {/* Group markers */}
         {[
-          {label:'MARKET',start:0,end:3,color:GROUP_COLORS.market},
-          {label:'ANALYSIS',start:3,end:6,color:GROUP_COLORS.fundamental},
-          {label:'QUANT',start:6,end:8,color:GROUP_COLORS.quant},
+          {label:'MARKET',start:0,end:4,color:GROUP_COLORS.market},
+          {label:'ANALYSIS',start:4,end:7,color:GROUP_COLORS.fundamental},
+          {label:'QUANT',start:7,end:9,color:GROUP_COLORS.quant},
         ].map(g=>(
           <div key={g.label} style={{
             position:'absolute',top:-16,fontFamily:GT.fontMono,fontSize:8,
@@ -960,6 +961,94 @@ function TabOverview({t,sym,setSym}){
 // ════════════════════════════════════════════════════════════════════
 // Tab: Chart — enhanced with Volume Profile + RSI + MACD
 // ════════════════════════════════════════════════════════════════════
+
+// ── Timeframe → Yahoo range/interval map ──────────────────────────────
+// Each timeframe maps to a Yahoo chart {range, interval} plus a label mode
+// that drives how the x-axis tick is formatted (intraday time vs date vs
+// month). `fetchChart`/`parseChart` from the live feed accept any of these.
+const TF_CONFIG = {
+  '1D': { range:'1d',  interval:'5m',  mode:'time'  },
+  '5D': { range:'5d',  interval:'30m', mode:'time'  },
+  '1M': { range:'1mo', interval:'1d',  mode:'date'  },
+  '3M': { range:'3mo', interval:'1d',  mode:'date'  },
+  '6M': { range:'6mo', interval:'1d',  mode:'date'  },
+  '1Y': { range:'1y',  interval:'1d',  mode:'date'  },
+  '5Y': { range:'5y',  interval:'1wk', mode:'month' },
+};
+const TF_ORDER = ['1D','5D','1M','3M','6M','1Y','5Y'];
+
+// Module-level cache so flipping between timeframes / tickers is instant after
+// the first fetch. Keyed `SYM|TF`; entries expire after CHART_TTL so a stale
+// session still refreshes on the next visit.
+const _chartCache = {};
+const CHART_TTL = 60000; // 60s
+
+function loadChart(sym, tf){
+  const cfg = TF_CONFIG[tf] || TF_CONFIG['3M'];
+  const key = sym + '|' + tf;
+  const hit = _chartCache[key];
+  if (hit && Date.now() - hit.t < CHART_TTL) return Promise.resolve(hit.candles);
+  if (!(window.LiveFeed && window.LiveFeed.fetchChart)) return Promise.resolve(null);
+  return window.LiveFeed.fetchChart(sym, cfg.range, cfg.interval)
+    .then(raw => {
+      const parsed = window.LiveFeed.parseChart(raw);
+      if (parsed && parsed.candles && parsed.candles.length) {
+        _chartCache[key] = { t: Date.now(), candles: parsed.candles };
+        return parsed.candles;
+      }
+      return null;
+    })
+    .catch(() => null);
+}
+
+// React hook: returns {candles, loading, live} for a symbol+timeframe, serving
+// the cache synchronously when warm and fetching in the background otherwise.
+function useChartData(sym, tf){
+  const [state, setState] = dsUseState(() => {
+    const hit = _chartCache[sym + '|' + tf];
+    return { candles: hit ? hit.candles : null, loading: !hit, live: !!hit };
+  });
+  dsUseEffect(() => {
+    let alive = true;
+    const hit = _chartCache[sym + '|' + tf];
+    if (hit && Date.now() - hit.t < CHART_TTL) {
+      setState({ candles: hit.candles, loading: false, live: true });
+      return () => { alive = false; };
+    }
+    setState(s => ({ candles: s.candles, loading: true, live: s.live }));
+    loadChart(sym, tf).then(c => {
+      if (!alive) return;
+      if (c) setState({ candles: c, loading: false, live: true });
+      else setState(s => ({ candles: s.candles, loading: false, live: false }));
+    });
+    return () => { alive = false; };
+  }, [sym, tf]);
+  return state;
+}
+
+// Simple moving average aligned 1:1 with the candle array (null during warm-up),
+// in real price units so it overlays correctly on the candle scale.
+function maSeries(candles, period){
+  period = period || 20;
+  const out = new Array(candles.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < candles.length; i++){
+    sum += candles[i].c;
+    if (i >= period) sum -= candles[i - period].c;
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
+// Format a candle timestamp for the x-axis given the timeframe label mode.
+function fmtAxis(t, mode){
+  if (!t) return '—';
+  const d = new Date(t);
+  if (mode === 'time')  return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
+  if (mode === 'month') return d.toLocaleDateString('en-US', { month:'short', year:'2-digit' });
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
 function TradingViewChart({sym,studies}){
   const ref=dsUseRef(null);
   dsUseEffect(()=>{
@@ -1000,14 +1089,22 @@ function TabChart({t}){
   const [funds,setFunds]=dsUseState({pe:false,fcf:false,eps:false,rev:false});
   // Scenario plot toggle
   const [showScenarios,setShowScenarios]=dsUseState(true);
+  const [tf,setTf]=dsUseState('3M');
+  // Real OHLCV for the selected timeframe — fetched live from Yahoo (cached +
+  // background-refreshed), so the range buttons actually re-window the data.
+  const feed=useChartData(t.sym,tf);
+  const tfMode=(TF_CONFIG[tf]||TF_CONFIG['3M']).mode;
   const candles=dsUseMemo(()=>{
-    // Use real candle data from LiveFeed if available
+    if(feed.candles&&feed.candles.length>=2) return feed.candles;
+    // Fallbacks: the shared 6-month live cache, then a deterministic synthetic
+    // series so the chart still renders if every proxy is unreachable.
     if(window.CANDLES&&window.CANDLES[t.sym]&&window.CANDLES[t.sym].length>=20){
       return window.CANDLES[t.sym].slice(-80);
     }
     return gtBars(t.sym.length*13+7,80);
-  },[t.sym,t.px]);
-  const [tf,setTf]=dsUseState('3M');
+  },[feed.candles,t.sym]);
+  const isLive=!!(feed.candles&&feed.candles.length>=2);
+  const maLine=dsUseMemo(()=>maSeries(candles,20),[candles]);
 
   const toggleBtn=(label,active,onClick,col)=>(
     <button onClick={onClick} style={{
@@ -1040,8 +1137,9 @@ function TabChart({t}){
           {toggleBtn('Volume Profile',showVP,()=>setShowVP(v=>!v))}
           {toggleBtn('RSI(14)',showRSI,()=>setShowRSI(v=>!v))}
           {toggleBtn('MACD',showMACD,()=>setShowMACD(v=>!v))}
-          <div style={{marginLeft:'auto',display:'flex',gap:4}}>
-            {['1M','3M','6M','1Y'].map(x=>(
+          <div style={{marginLeft:'auto',display:'flex',gap:4,alignItems:'center'}}>
+            {feed.loading&&<span style={{fontFamily:GT.fontMono,fontSize:8,color:palette.b,letterSpacing:1,marginRight:2}}>◌ LOADING</span>}
+            {TF_ORDER.map(x=>(
               <button key={x} onClick={()=>setTf(x)} style={{
                 padding:'3px 8px',fontFamily:GT.fontMono,fontSize:9,fontWeight:700,
                 background:tf===x?palette.a:'transparent',color:tf===x?'#0a0e1c':GT.textDim,
@@ -1064,12 +1162,12 @@ function TabChart({t}){
       </div>
 
       {/* Candle chart + Volume Profile */}
-      <Panel kicker={`${t.sym} · OHLC · ${tf} · ${window.CANDLES&&window.CANDLES[t.sym]?'LIVE':'Simulated'}`}
+      <Panel kicker={`${t.sym} · OHLC · ${tf} · ${isLive?'LIVE':'Simulated'}`}
         title="Candlestick + Volume Profile" accent={palette.b}
         right={<span style={{fontFamily:GT.fontMono,fontSize:10}}>O {t.open} · H {t.high} · L {t.low} · C {t.px}</span>}>
         <div style={{display:'flex',gap:0,alignItems:'stretch'}}>
           <div style={{flex:1,minWidth:0,position:'relative'}}>
-            <CandleChart data={candles} ma={SPARKS[t.sym]} height={280}/>
+            <CandleChart data={candles} ma={maLine} height={280}/>
             {/* Scenario price target overlay (Bull / Base / Bear) */}
             {showScenarios&&scenarios.length>0&&(
               <svg style={{position:'absolute',inset:0,pointerEvents:'none'}}
@@ -1107,14 +1205,13 @@ function TabChart({t}){
             )}
             <div style={{display:'flex',justifyContent:'space-between',fontFamily:GT.fontMono,fontSize:9,color:'rgba(160,172,200,.7)',marginTop:4}}>
               {(()=>{
-                // Generate real date labels from candle timestamps if available
+                // Real tick labels from candle timestamps, formatted to suit the
+                // active timeframe (intraday time · date · month+year for 5Y).
                 if(candles.length>0&&candles[0].t){
-                  const step=Math.floor(candles.length/5);
-                  return [0,step,step*2,step*3,step*4,candles.length-1].map(i=>{
+                  const step=Math.max(1,Math.floor(candles.length/5));
+                  return [0,step,step*2,step*3,step*4,candles.length-1].map((i,k)=>{
                     const c=candles[Math.min(i,candles.length-1)];
-                    if(!c||!c.t) return <span key={i}>—</span>;
-                    const d=new Date(c.t);
-                    return <span key={i}>{d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>;
+                    return <span key={k}>{c&&c.t?fmtAxis(c.t,tfMode):'—'}</span>;
                   });
                 }
                 return [<span key={0}>FEB 21</span>,<span key={1}>MAR 12</span>,<span key={2}>MAR 28</span>,
@@ -1130,33 +1227,266 @@ function TabChart({t}){
         {showMACD&&<MACDPanel candles={candles} height={88}/>}
       </Panel>
 
-      {/* Volume histogram (time-based) */}
+      {/* Volume histogram + Bollinger overlay — both from the live candles */}
       <div className="gt-cols-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:density.gap}}>
-        <Panel kicker="Volume · time series" title="Daily volume bars" accent={palette.b}>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(40,1fr)',gap:1.5,alignItems:'end',height:90}}>
-            {Array.from({length:40}).map((_,i)=>{
-              const h=20+((i*17)%80);
-              const up=(i+t.sym.length)%3!==0;
-              return<div key={i} style={{height:h+'%',background:up?GT.green:GT.red,opacity:0.55}}/>;
-            })}
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',fontFamily:GT.fontMono,fontSize:8,color:GT.textDim,marginTop:4}}>
-            <span>4W AGO</span><span>2W AGO</span><span>NOW</span>
-          </div>
+        <Panel kicker={`Volume · ${tf}`} title="Volume bars" accent={palette.b}>
+          {(()=>{
+            const N=Math.min(48,candles.length);
+            const vc=candles.slice(-N);
+            const maxV=Math.max(...vc.map(c=>c.v||0))||1;
+            return(<>
+              <div style={{display:'grid',gridTemplateColumns:`repeat(${vc.length},1fr)`,gap:1.5,alignItems:'end',height:90}}>
+                {vc.map((c,i)=>(
+                  <div key={i} title={(c.v||0).toLocaleString()}
+                    style={{height:`${Math.max(3,((c.v||0)/maxV)*100)}%`,background:c.up?GT.green:GT.red,opacity:0.6}}/>
+                ))}
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',fontFamily:GT.fontMono,fontSize:8,color:GT.textDim,marginTop:4}}>
+                <span>{vc[0]&&vc[0].t?fmtAxis(vc[0].t,tfMode):'OLDEST'}</span>
+                <span>NOW</span>
+              </div>
+            </>);
+          })()}
         </Panel>
-        <Panel kicker="Bollinger Bands · ATR" title="Volatility overlay" accent="#f472b6">
-          <div style={{position:'relative',height:90}}>
-            <svg width="100%" height={90} viewBox="0 0 600 90" preserveAspectRatio="none">
-              {/* Upper band */}
-              <path d={SPARKS[t.sym].slice(0,60).map((v,i)=>`${i===0?'M':'L'}${(i/59)*600},${90-(v*0.5+0.3)*80}`).join(' ')}
-                fill="none" stroke={palette.b} strokeWidth={1} strokeDasharray="3,3" opacity={0.6}/>
-              {/* Lower band */}
-              <path d={SPARKS[t.sym].slice(0,60).map((v,i)=>`${i===0?'M':'L'}${(i/59)*600},${90-(v*0.3+0.05)*80}`).join(' ')}
-                fill="none" stroke={palette.b} strokeWidth={1} strokeDasharray="3,3" opacity={0.6}/>
-              {/* Price */}
-              <path d={SPARKS[t.sym].slice(0,60).map((v,i)=>`${i===0?'M':'L'}${(i/59)*600},${90-(v*0.4+0.18)*80}`).join(' ')}
-                fill="none" stroke={GT.text} strokeWidth={1.5}/>
+        <Panel kicker={`Bollinger Bands (20,2) · ${tf}`} title="Volatility overlay" accent="#f472b6">
+          {(()=>{
+            const seg=candles.slice(-Math.min(80,candles.length));
+            const closes=seg.map(c=>c.c);
+            const period=Math.min(20,closes.length);
+            const up=[],lo=[],mid=[];
+            for(let i=0;i<closes.length;i++){
+              if(i<period-1){up.push(null);lo.push(null);mid.push(null);continue;}
+              let s=0;for(let j=i-period+1;j<=i;j++)s+=closes[j];
+              const m=s/period;
+              let v=0;for(let j=i-period+1;j<=i;j++)v+=(closes[j]-m)*(closes[j]-m);
+              const sd=Math.sqrt(v/period);
+              mid.push(m);up.push(m+2*sd);lo.push(m-2*sd);
+            }
+            const vals=[...up,...lo,...closes].filter(v=>v!=null);
+            const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+            const W=600,H=90;
+            const X=i=>(i/(closes.length-1||1))*W;
+            const Y=v=>H-((v-mn)/rng)*(H-8)-4;
+            const path=arr=>arr.map((v,i)=>v==null?null:`${i&&arr[i-1]!=null?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(' ');
+            return(
+              <div style={{position:'relative',height:90}}>
+                <svg width="100%" height={90} viewBox="0 0 600 90" preserveAspectRatio="none">
+                  <path d={path(up)} fill="none" stroke={palette.b} strokeWidth={1} strokeDasharray="3,3" opacity={0.6}/>
+                  <path d={path(lo)} fill="none" stroke={palette.b} strokeWidth={1} strokeDasharray="3,3" opacity={0.6}/>
+                  <path d={path(mid)} fill="none" stroke="#f472b6" strokeWidth={1} opacity={0.7}/>
+                  <path d={closes.map((v,i)=>`${i===0?'M':'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}
+                    fill="none" stroke={GT.text} strokeWidth={1.5}/>
+                </svg>
+              </div>
+            );
+          })()}
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Tab: Compare — multi-stock normalized % return overlay
+// ════════════════════════════════════════════════════════════════════
+function TabCompare({sym}){
+  const {palette,density,headline}=useTheme();
+  const COLORS=[palette.a,palette.b,'#f472b6','#fbbf24','#34d399'];
+  const RANGES=['1M','3M','6M','1Y','5Y'];
+  const [tf,setTf]=dsUseState('6M');
+  const [sel,setSel]=dsUseState(()=>{
+    const base=ORDER.includes(sym)?[sym]:[];
+    for(const s of ORDER){ if(base.length>=4) break; if(!base.includes(s)) base.push(s); }
+    return base;
+  });
+  const [series,setSeries]=dsUseState({});
+  const [loading,setLoading]=dsUseState(true);
+  const [hover,setHover]=dsUseState(null);
+  const svgRef=dsUseRef(null);
+
+  const selKey=sel.join(',');
+  dsUseEffect(()=>{
+    let alive=true; setLoading(true);
+    Promise.all(sel.map(s=>loadChart(s,tf).then(c=>[s,c]))).then(pairs=>{
+      if(!alive) return;
+      const m={}; pairs.forEach(([s,c])=>{ if(c&&c.length>1) m[s]=c; });
+      setSeries(m); setLoading(false);
+    });
+    return ()=>{alive=false;};
+  },[selKey,tf]);
+
+  // Toggle a ticker in/out of the basket, keeping 2..5 selected.
+  function toggle(s){
+    setSel(prev=>{
+      if(prev.includes(s)) return prev.length>2?prev.filter(x=>x!==s):prev;
+      return prev.length>=5?prev:[...prev,s];
+    });
+  }
+  const colorFor=s=>COLORS[sel.indexOf(s)%COLORS.length];
+
+  // Build % return series aligned by bar index (trim each to the shortest so a
+  // ticker with less history doesn't skew the x-axis). Base = first bar.
+  const syms=sel.filter(s=>series[s]&&series[s].length>1);
+  const minLen=syms.length?Math.min(...syms.map(s=>series[s].length)):0;
+  const norm={};
+  syms.forEach(s=>{
+    const c=series[s].slice(-minLen);
+    const base=c[0].c||1;
+    norm[s]=c.map(b=>(b.c/base-1)*100);
+  });
+  const flat=syms.flatMap(s=>norm[s]);
+  const pmin=flat.length?Math.min(...flat,0):-5;
+  const pmax=flat.length?Math.max(...flat,0):5;
+  const padY=(pmax-pmin)*0.08||1;
+  const lo=pmin-padY, hi=pmax+padY;
+
+  const W=760,H=320;
+  const X=i=>(minLen<2?0:(i/(minLen-1))*W);
+  const Y=v=>H-((v-lo)/(hi-lo))*(H-10)-5;
+  const tsRef=syms.length?series[syms[0]].slice(-minLen).map(c=>c.t):[];
+  const tfMode=(TF_CONFIG[tf]||TF_CONFIG['6M']).mode;
+
+  function onMove(e){
+    const svg=svgRef.current; if(!svg||minLen<2) return;
+    const r=svg.getBoundingClientRect();
+    const idx=Math.max(0,Math.min(minLen-1,Math.round(((e.clientX-r.left)/r.width)*(minLen-1))));
+    setHover(idx);
+  }
+
+  const board=syms.map(s=>({s,ret:norm[s][norm[s].length-1]})).sort((a,b)=>b.ret-a.ret);
+  const maxAbs=Math.max(...board.map(b=>Math.abs(b.ret)),1);
+
+  const chipBtn=(s)=>{
+    const on=sel.includes(s); const c=colorFor(s);
+    return(
+      <button key={s} onClick={()=>toggle(s)} style={{
+        display:'flex',alignItems:'center',gap:6,padding:'5px 11px',borderRadius:100,cursor:'pointer',
+        fontFamily:GT.fontMono,fontSize:10,fontWeight:700,letterSpacing:0.6,
+        border:`1px solid ${on?c:palette.edge}`,background:on?`${c}1f`:'transparent',
+        color:on?GT.text:GT.textDim,transition:'all .15s',
+      }}>
+        <span style={{width:8,height:8,borderRadius:'50%',background:on?c:'transparent',border:`1px solid ${on?c:GT.textDim}`}}/>
+        {s}
+      </button>
+    );
+  };
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:density.gap}}>
+      {/* Controls — ticker basket + range */}
+      <div style={{display:'flex',flexDirection:'column',gap:10,padding:'12px 14px',background:GT.glass,border:`1px solid ${palette.edge}`,backdropFilter:'blur(16px)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,letterSpacing:1,marginRight:2}}>TICKERS</span>
+          {ORDER.map(chipBtn)}
+          <span style={{fontFamily:GT.fontMono,fontSize:8,color:GT.textVeryDim,marginLeft:2}}>2–5 · normalized to % return</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,borderTop:`1px dashed ${palette.edge}`,paddingTop:8}}>
+          <span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim,letterSpacing:1,marginRight:2}}>RANGE</span>
+          {RANGES.map(x=>(
+            <button key={x} onClick={()=>setTf(x)} style={{
+              padding:'3px 9px',fontFamily:GT.fontMono,fontSize:9,fontWeight:700,
+              background:tf===x?palette.a:'transparent',color:tf===x?'#0a0e1c':GT.textDim,
+              border:`1px solid ${tf===x?palette.a:palette.edge}`,borderRadius:4,cursor:'pointer',
+            }}>{x}</button>
+          ))}
+          {loading&&<span style={{marginLeft:'auto',fontFamily:GT.fontMono,fontSize:8,color:palette.b,letterSpacing:1}}>◌ LOADING</span>}
+        </div>
+      </div>
+
+      {/* Overlay chart */}
+      <Panel kicker={`Relative performance · ${tf}`} title="Normalized % return" accent={palette.a}
+        right={<span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.textDim}}>base = first bar · {syms.length} series</span>}>
+        {minLen<2?(
+          <div style={{height:320,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:GT.fontMono,fontSize:11,color:GT.textDim}}>
+            {loading?'Loading market data…':'Select at least two tickers.'}
+          </div>
+        ):(
+          <div style={{position:'relative'}}>
+            <svg ref={svgRef} width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+              onMouseMove={onMove} onMouseLeave={()=>setHover(null)} style={{display:'block',cursor:'crosshair'}}>
+              {[0,0.25,0.5,0.75,1].map((p,i)=><line key={i} x1={0} x2={W} y1={p*H} y2={p*H} stroke={palette.edge} strokeDasharray="2,4"/>)}
+              {lo<0&&hi>0&&<line x1={0} x2={W} y1={Y(0)} y2={Y(0)} stroke="rgba(255,255,255,.35)" strokeWidth={1}/>}
+              {syms.map(s=>{
+                const d=norm[s].map((v,i)=>`${i===0?'M':'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+                return <path key={s} d={d} fill="none" stroke={colorFor(s)} strokeWidth={1.8} opacity={0.95}/>;
+              })}
+              {hover!=null&&<line x1={X(hover)} x2={X(hover)} y1={0} y2={H} stroke="rgba(255,255,255,.25)" strokeDasharray="3,3"/>}
+              {hover!=null&&syms.map(s=>(
+                <circle key={s} cx={X(hover)} cy={Y(norm[s][hover])} r={3.2} fill={colorFor(s)} stroke="#0a0e1c" strokeWidth={1}/>
+              ))}
+              {syms.map(s=>{
+                const v=norm[s][norm[s].length-1];
+                return <text key={s} x={W-2} y={Math.max(10,Math.min(H-2,Y(v)-4))} textAnchor="end" fontFamily={GT.fontMono} fontSize={10} fontWeight={700} fill={colorFor(s)}>{s} {v>=0?'+':''}{v.toFixed(1)}%</text>;
+              })}
             </svg>
+            {hover!=null&&(
+              <div className="gt-chart-tip" style={{left:`${(X(hover)/W)*100}%`}}>
+                <div className="gt-chart-tip-h">{tsRef[hover]?fmtAxis(tsRef[hover],tfMode):''}</div>
+                {[...syms].sort((a,b)=>norm[b][hover]-norm[a][hover]).map(s=>(
+                  <div key={s} className="gt-chart-tip-row">
+                    <span style={{color:colorFor(s)}}>● {s}</span>
+                    <b style={{color:norm[s][hover]>=0?GT.green:GT.red}}>{norm[s][hover]>=0?'+':''}{norm[s][hover].toFixed(2)}%</b>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{display:'flex',justifyContent:'space-between',fontFamily:GT.fontMono,fontSize:9,color:'rgba(160,172,200,.7)',marginTop:4}}>
+              {(()=>{
+                const step=Math.max(1,Math.floor(minLen/5));
+                return [0,step,step*2,step*3,step*4,minLen-1].map((i,k)=>{
+                  const ti=tsRef[Math.min(i,minLen-1)];
+                  return <span key={k}>{ti?fmtAxis(ti,tfMode):'—'}</span>;
+                });
+              })()}
+            </div>
+          </div>
+        )}
+      </Panel>
+
+      {/* Leaderboard + valuation snapshot */}
+      <div className="gt-cols-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:density.gap}}>
+        <Panel kicker={`Return leaderboard · ${tf}`} title="Best to worst" accent={palette.b}>
+          {board.length?board.map((row,i)=>{
+            const c=colorFor(row.s);
+            return(
+              <div key={row.s} style={{display:'grid',gridTemplateColumns:'20px 54px 1fr 64px',alignItems:'center',gap:8,padding:'8px 0',borderBottom:i<board.length-1?`1px dashed ${palette.edge}`:'none'}}>
+                <span style={{fontFamily:GT.fontMono,fontSize:10,color:GT.textDim}}>{i+1}</span>
+                <span style={{fontFamily:GT.fontMono,fontSize:11,fontWeight:700,color:c}}>{row.s}</span>
+                <div style={{height:8,background:'rgba(255,255,255,.05)',borderRadius:2,position:'relative'}}>
+                  <div style={{position:'absolute',left:0,top:0,bottom:0,width:`${(Math.abs(row.ret)/maxAbs)*100}%`,background:c,borderRadius:2,opacity:0.8}}/>
+                </div>
+                <span style={{fontFamily:GT.fontMono,fontSize:11,fontWeight:700,textAlign:'right',color:row.ret>=0?GT.green:GT.red}}>{row.ret>=0?'+':''}{row.ret.toFixed(1)}%</span>
+              </div>
+            );
+          }):<div style={{fontFamily:GT.fontMono,fontSize:11,color:GT.textDim,padding:10}}>—</div>}
+        </Panel>
+        <Panel kicker="Valuation snapshot" title="Key multiples" accent="#f472b6">
+          <div className="gt-table-scroll">
+            <table style={{width:'100%',borderCollapse:'collapse',fontFamily:GT.fontMono,fontSize:11}}>
+              <thead>
+                <tr style={{color:GT.textDim,textAlign:'right'}}>
+                  <th style={{textAlign:'left',padding:'4px 6px',fontWeight:600}}>SYM</th>
+                  <th style={{padding:'4px 6px',fontWeight:600}}>PRICE</th>
+                  <th style={{padding:'4px 6px',fontWeight:600}}>P/E NTM</th>
+                  <th style={{padding:'4px 6px',fontWeight:600}}>MCAP</th>
+                  <th style={{padding:'4px 6px',fontWeight:600}}>CHG%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sel.map(s=>{
+                  const tk=TICKERS[s]; if(!tk) return null;
+                  return(
+                    <tr key={s} style={{borderTop:`1px dashed ${palette.edge}`,textAlign:'right'}}>
+                      <td style={{textAlign:'left',padding:'6px',color:colorFor(s),fontWeight:700}}>{s}</td>
+                      <td style={{padding:'6px',color:GT.text}}>${tk.px.toFixed(2)}</td>
+                      <td style={{padding:'6px',color:GT.textDim}}>{tk.fundamentals?tk.fundamentals.pfwd:'—'}</td>
+                      <td style={{padding:'6px',color:GT.textDim}}>{fmtMcap(tk.mcap)}</td>
+                      <td style={{padding:'6px',color:tk.chg>=0?GT.green:GT.red,fontWeight:700}}>{tk.chg>=0?'+':''}{tk.chgPct.toFixed(2)}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </Panel>
       </div>
@@ -2987,6 +3317,7 @@ function Dashboard(){
   let tabContent;
   if(tab==='Overview')         tabContent=<TabOverview t={t} sym={sym} setSym={setSym}/>;
   else if(tab==='Chart')       tabContent=<TabChart t={t}/>;
+  else if(tab==='Compare')     tabContent=<TabCompare sym={sym}/>;
   else if(tab==='Technical')   tabContent=<TabTechnical t={t}/>;
   else if(tab==='Financials')  tabContent=<TabFinancials t={t}/>;
   else if(tab==='Deep Dive')   tabContent=<TabDeepDive t={t}/>;
