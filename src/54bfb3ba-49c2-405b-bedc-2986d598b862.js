@@ -260,6 +260,26 @@ function CandleChart({ data, ma, height = 240, w = 760 }) {
   const max = Math.max(...data.map(b => b.h));
   const scale = v => height - ((v - min) / (max - min)) * (height - 20) - 10;
   const bw = w / data.length;
+  // MA overlay — when `ma` is a real-price array aligned 1:1 with `data`
+  // (nulls allowed during the moving-average warm-up window), draw it on the
+  // candle price scale so the line sits correctly over the bars. Falls back to
+  // the legacy normalized-sparkline path when callers pass a 0..1 series.
+  let maPath = null;
+  if (Array.isArray(ma) && ma.length) {
+    const aligned = ma.length === data.length && ma.some(v => typeof v === 'number' && v > 1.5);
+    if (aligned) {
+      let started = false; const seg = [];
+      for (let i = 0; i < ma.length; i++) {
+        const v = ma[i];
+        if (v == null || !isFinite(v)) { started = false; continue; }
+        seg.push(`${started ? 'L' : 'M'}${(i * bw + bw / 2).toFixed(1)},${scale(v).toFixed(1)}`);
+        started = true;
+      }
+      maPath = seg.join(' ');
+    } else {
+      maPath = gtSpark(ma, w, height, 10);
+    }
+  }
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none">
       {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
@@ -281,8 +301,8 @@ function CandleChart({ data, ma, height = 240, w = 760 }) {
           </g>
         );
       })}
-      {ma && (
-        <path d={gtSpark(ma, w, height, 10)} fill="none"
+      {maPath && (
+        <path d={maPath} fill="none"
           stroke={palette.b} strokeWidth={1.5} opacity={0.85}
           className="gt-draw" style={{ '--gt-dash': 3000, animationDelay: '300ms' }} />
       )}
