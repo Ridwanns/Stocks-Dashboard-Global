@@ -346,6 +346,69 @@ function ExtBadge({ext,big}){
   );
 }
 
+// ── US market session status ──────────────────────────────────────
+// A frozen regular-session price during off-hours is correct behaviour, not a
+// broken feed — this pill makes that explicit. Open/close times are evaluated
+// in US Eastern; the "opens" hint is rendered in the viewer's own locale/tz so
+// it reads naturally wherever they are.
+function usMarketStatus(now){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour12:false,hour:'2-digit',minute:'2-digit'})
+    .formatToParts(now).reduce((a,x)=>{a[x.type]=x.value;return a;},{});
+  const min=(+p.hour)*60+(+p.minute);
+  if(p.weekday==='Sat'||p.weekday==='Sun') return 'CLOSED';
+  if(min>=570&&min<960) return 'OPEN';   // 9:30–16:00 ET
+  if(min>=240&&min<570) return 'PRE';    // 4:00–9:30 ET
+  if(min>=960&&min<1200) return 'AFTER'; // 16:00–20:00 ET
+  return 'CLOSED';
+}
+
+// Next regular-session open (9:30 ET) as a real Date, skipping weekends and
+// accounting for DST by re-deriving the Eastern UTC offset per candidate day.
+function nextUsOpen(now){
+  function etOffsetMin(d){
+    const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+      .formatToParts(d).reduce((a,x)=>{a[x.type]=x.value;return a;},{});
+    return Math.round((Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-d.getTime())/60000);
+  }
+  for(let i=0;i<8;i++){
+    const probe=new Date(now.getTime()+i*86400000);
+    const dp=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit'})
+      .formatToParts(probe).reduce((a,x)=>{a[x.type]=x.value;return a;},{});
+    if(dp.weekday==='Sat'||dp.weekday==='Sun') continue;
+    const openMs=Date.UTC(+dp.year,+dp.month-1,+dp.day,9,30)-etOffsetMin(probe)*60000;
+    if(openMs>now.getTime()+30000) return new Date(openMs);
+  }
+  return null;
+}
+
+function MarketStatusPill(){
+  const [now,setNow]=dsUseState(()=>new Date());
+  dsUseEffect(()=>{const id=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(id);},[]);
+  const status=usMarketStatus(now);
+  const open=status==='OPEN';
+  const color=open?GT.green:(status==='PRE'||status==='AFTER')?GT.amber:GT.textDim;
+  const label=open?'US MARKET OPEN':status==='PRE'?'US PRE-MARKET':status==='AFTER'?'US AFTER-HOURS':'US MARKET CLOSED';
+  let sub=null;
+  if(!open){
+    const no=nextUsOpen(now);
+    if(no){
+      const sameDay=no.toDateString()===now.toDateString();
+      const wstr=sameDay?'':' '+no.toLocaleDateString(undefined,{weekday:'short'});
+      sub='opens'+wstr+' '+no.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    }
+  }
+  return(
+    <span title="US regular session 9:30–16:00 ET" style={{
+      display:'inline-flex',alignItems:'center',gap:7,padding:'4px 10px',borderRadius:100,
+      border:`1px solid ${color}55`,background:`${color}14`,whiteSpace:'nowrap',lineHeight:1.1,
+    }}>
+      <span style={{width:7,height:7,borderRadius:'50%',background:color,boxShadow:open?`0 0 7px ${color}`:'none'}}/>
+      <span style={{fontFamily:GT.fontMono,fontSize:10,fontWeight:700,letterSpacing:0.6,color:open?GT.text:color}}>{label}</span>
+      {sub&&<span style={{fontFamily:GT.fontMono,fontSize:9.5,color:'rgba(160,172,200,.85)',letterSpacing:0.3}}>· {sub}</span>}
+    </span>
+  );
+}
+
 function QuoteHead({t,tab,setTab}){
   const {palette,headline}=useTheme();
   const up=t.chg>=0;
@@ -374,6 +437,8 @@ function QuoteHead({t,tab,setTab}){
             </span>
             {/* Pre-market / after-hours / overnight running price */}
             <ExtBadge ext={t.ext} big/>
+            {/* US market open/closed status — makes a frozen off-hours price legible */}
+            <MarketStatusPill/>
             <span style={{display:'inline-flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
               <LiveClock tz="America/New_York" label="NY" open="09:30" close="16:00"/>
               <LiveClock tz="Europe/London" label="LDN" open="08:00" close="16:30"/>
