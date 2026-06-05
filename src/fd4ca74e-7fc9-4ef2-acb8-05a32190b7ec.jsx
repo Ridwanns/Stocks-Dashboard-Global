@@ -806,6 +806,26 @@ function StockOverviewCard({sym,active,onClick}){
 }
 
 // ── Global market globe — rotating 3D Earth + live world index board ──
+// Per-exchange regular trading hours (local tz). A world index only ticks while
+// its own market is open, so a frozen value during the others' off-hours is
+// correct — these power an OPEN/CLOSED badge that makes that legible. Lunch
+// breaks (Tokyo/Shanghai) are ignored; this only drives an open/closed dot.
+const MKT_HOURS = {
+  N225:  { tz:'Asia/Tokyo',     open:'09:00', close:'15:00' },
+  KS11:  { tz:'Asia/Seoul',     open:'09:00', close:'15:30' },
+  SSEC:  { tz:'Asia/Shanghai',  open:'09:30', close:'15:00' },
+  HSI:   { tz:'Asia/Hong_Kong', open:'09:30', close:'16:00' },
+  JKSE:  { tz:'Asia/Jakarta',   open:'09:00', close:'15:50' },
+  FTSE:  { tz:'Europe/London',  open:'08:00', close:'16:30' },
+  GDAXI: { tz:'Europe/Berlin',  open:'09:00', close:'17:30' },
+  GSPC:  { tz:'America/New_York',open:'09:30', close:'16:00' },
+  IXIC:  { tz:'America/New_York',open:'09:30', close:'16:00' },
+  DJI:   { tz:'America/New_York',open:'09:30', close:'16:00' },
+};
+function mktOpen(id){
+  const h=MKT_HOURS[id];
+  return h?isInSession(h.tz,h.open,h.close):null;
+}
 function fmtIdx(v){
   if(v==null) return '—';
   return v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -899,7 +919,9 @@ function GlobalMarketGlobe(){
             <div key={activeId} className="gt-globe-card" style={{borderColor:`${actC}55`,boxShadow:`0 8px 30px -12px rgba(0,0,0,.7), 0 0 0 1px ${actC}22`}}>
               <i className="gt-hud-corner tl" style={{borderColor:actC}}/><i className="gt-hud-corner tr" style={{borderColor:actC}}/>
               <i className="gt-hud-corner bl" style={{borderColor:actC}}/><i className="gt-hud-corner br" style={{borderColor:actC}}/>
-              <div className="gt-hud-head" style={{color:actC}}>{actM.flag} {actM.city.toUpperCase()} · {actM.cc}</div>
+              <div className="gt-hud-head" style={{color:actC}}>{actM.flag} {actM.city.toUpperCase()} · {actM.cc}
+                {(()=>{const o=mktOpen(actM.id);return o===null?null:<span style={{marginLeft:6,color:o?GT.green:'rgba(160,172,200,.7)'}}>{o?'● OPEN':'○ CLOSED'}</span>;})()}
+              </div>
               <div className="gt-hud-name" style={{fontFamily:headline}}>{actM.name}</div>
               <div className="gt-hud-val">
                 <span className={actD?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:18,fontWeight:700,color:GT.text}}>{actD?fmtIdx(actD.price):'————'}</span>
@@ -930,7 +952,15 @@ function GlobalMarketGlobe(){
                 <span style={{fontSize:15,lineHeight:1}}>{m.flag}</span>
                 <div style={{minWidth:0}}>
                   <div style={{fontFamily:GT.fontMono,fontSize:11.5,color:GT.text,fontWeight:700,letterSpacing:0.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
-                  <div style={{fontFamily:GT.fontMono,fontSize:8.5,color:GT.textDim,letterSpacing:0.8}}>{m.city.toUpperCase()}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:8.5,letterSpacing:0.8}}>
+                    <span style={{color:GT.textDim}}>{m.city.toUpperCase()}</span>
+                    {(()=>{const o=mktOpen(m.id);if(o===null)return null;
+                      return(<span style={{display:'inline-flex',alignItems:'center',gap:3,color:o?GT.green:GT.textVeryDim,fontWeight:700}}>
+                        <span style={{width:5,height:5,borderRadius:'50%',background:o?GT.green:'transparent',border:o?'none':`1px solid ${GT.textVeryDim}`,boxShadow:o?`0 0 5px ${GT.green}`:'none'}}/>
+                        {o?'OPEN':'CLOSED'}
+                      </span>);
+                    })()}
+                  </div>
                 </div>
                 <div style={{textAlign:'right'}}>
                   <div className={d?'':'gt-idx-skel'} style={{fontFamily:GT.fontMono,fontSize:11.5,color:GT.text,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{d?fmtIdx(d.price):'————'}</div>
