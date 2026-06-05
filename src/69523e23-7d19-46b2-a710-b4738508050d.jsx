@@ -144,22 +144,35 @@ function resize(width, height) {
   STATE.camera.updateProjectionMatrix();
 }
 
+// Render cap — the drift is purely time-based, so rendering ~30fps instead of
+// 60 looks identical while freeing roughly half the GPU/main-thread budget for
+// smoother scrolling and tab transitions. Also skips work while the tab is
+// hidden. Visuals are unchanged.
+const GALAXY_FRAME_MS = 1000 / 30;
+let _glLast = 0;
 function loop() {
   if (!STATE.renderer) return;
-  const t = performance.now() * 0.0001;
+  STATE.raf = requestAnimationFrame(loop);            // keep the chain alive
+  if (document.hidden) return;                         // nothing to draw when hidden
+  const nowMs = performance.now();
+  if (nowMs - _glLast < GALAXY_FRAME_MS) return;       // throttle to the cap
+  _glLast = nowMs;
+
+  const t = nowMs * 0.0001;
   // Very slow drift on the whole starfield — feels like a hovering camera
   // rather than a spinning disk.
   for (const p of STATE.points) {
     p.rotation.y = t * 0.35;
     p.rotation.x = Math.sin(t * 0.4) * 0.04;
   }
-  // Mouse parallax — gentle, lerped toward target.
-  STATE.camera.position.x += (STATE.mouse.x * 12 - STATE.camera.position.x) * 0.02;
-  STATE.camera.position.y += (STATE.mouse.y * 6 - STATE.camera.position.y) * 0.02;
+  // Mouse parallax — gentle, lerped toward target. Factor doubled (0.04) to
+  // settle at the same wall-clock speed as the old 60fps loop now that we
+  // render at ~30fps, so the parallax feel is preserved.
+  STATE.camera.position.x += (STATE.mouse.x * 12 - STATE.camera.position.x) * 0.04;
+  STATE.camera.position.y += (STATE.mouse.y * 6 - STATE.camera.position.y) * 0.04;
   STATE.camera.lookAt(0, 0, 0);
 
   STATE.renderer.render(STATE.scene, STATE.camera);
-  STATE.raf = requestAnimationFrame(loop);
 }
 
 // Public entrypoint — called from Hero's useEffect.
@@ -586,6 +599,7 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(size); try { ro.observe(canvas); } catch (e) {} }
 
   let raf = 0, t0 = performance.now(), last = t0;
+  const GLOBE_FRAME_MS = 1000 / 30; // cap render ~30fps; motion is dt-based so it looks identical
   let selectedId = null, lockUntil = 0, projectCb = null, activeCb = null, activeId = null;
   let ryCur = 0, paused = false;
   const markerOrder = markets.map(m => m.id).filter(id => markerMap[id]);
@@ -593,7 +607,11 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
   const _v = new THREE.Vector3();
 
   function frame() {
+    raf = requestAnimationFrame(frame);                       // keep the chain alive
     const now = performance.now();
+    // Skip rendering while hidden or between capped frames. `last` only advances
+    // on rendered frames, so dt stays correct and motion speed is unchanged.
+    if (document.hidden || now - last < GLOBE_FRAME_MS) return;
     const dt = Math.min(64, now - last); last = now;
     const el = (now - t0) * 0.001;
 
@@ -648,7 +666,6 @@ window.startMarketGlobe = function startMarketGlobe(canvas, markets, opts) {
     }
 
     renderer.render(scene, camera);
-    raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);
 
