@@ -3195,7 +3195,7 @@ function TabNews({t}){
     <div style={{display:'flex',flexDirection:'column',gap:density.gap}}>
       {/* Live feed */}
       <Panel kicker={`Yahoo Finance · ${t.sym}`} title="Live news feed" accent={GT.amber}
-        right={<span style={{fontFamily:GT.fontMono,fontSize:9,color:GT.green}}>● LIVE · auto-refreshes 5min</span>}>
+        right={<LiveDot suffix="· auto-refreshes 5min"/>}>
         <YahooNewsHub sym={t.sym}/>
       </Panel>
 

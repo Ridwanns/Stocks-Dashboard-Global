@@ -34,10 +34,22 @@
   window.LIVE.indices = window.LIVE.indices || {};
 
   // ── CORS proxy rotation ───────────────────────────────────────────
+  // On localhost, serve.py exposes /api/proxy which forwards to Yahoo from
+  // Python (no CORS, and it sends the User-Agent Yahoo demands or you get 429).
+  // It goes first because it's the only leg that reliably works: as of Sep 2026
+  // corsproxy.io answers 401 (paid API key now required), allorigins 520 and
+  // codetabs 522. They stay in the list as a fallback in case they come back.
+  const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
+  const LOCAL_PROXY = url => '/api/proxy?url=' + encodeURIComponent(url);
   const PROXIES = [
+    ...(IS_LOCAL ? [LOCAL_PROXY] : []),
     url => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
     url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
     url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  ];
+  const PROXY_NAMES = [
+    ...(IS_LOCAL ? ['local'] : []),
+    'corsproxy.io', 'allorigins', 'codetabs',
   ];
   let proxyIdx = 0;
 
@@ -51,8 +63,14 @@
         const res = await fetch(PROXIES[pi](url), { signal: ctrl.signal });
         clearTimeout(timer);
         if (!res.ok) continue;
+        const json = await res.json();
+        // The local proxy reports upstream failures as {"error": "..."} with a
+        // non-200 status, but a public proxy can hand back 200 + an error body;
+        // treat a payload with no chart/news as a miss and try the next one.
+        if (json && json.error && !json.chart && !json.news) continue;
         proxyIdx = pi;
-        return await res.json();
+        window.LIVE.proxy = PROXY_NAMES[pi];
+        return json;
       } catch(e) { continue; }
     }
     return null;

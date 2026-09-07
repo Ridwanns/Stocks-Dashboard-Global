@@ -241,6 +241,45 @@ function Kicker({ children, color, style }) {
   );
 }
 
+// ── Live status chip ─────────────────────────────────────────────
+// Reports what the feed is ACTUALLY doing rather than a hardcoded "● LIVE".
+// Panels that render numbers from window.TICKERS must use this: when every
+// proxy is down the tickers still hold their seeded static values, so a fixed
+// LIVE label claims freshness the data doesn't have.
+// `suffix` appends detail (e.g. "· auto-refreshes 5min") only while truly live.
+function LiveDot({ suffix, style }) {
+  const [, bump] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    const on = () => bump();
+    window.addEventListener('live-tick', on);
+    // feedStatus can flip to FALLBACK without a tick firing, so poll gently too.
+    const id = setInterval(on, 5000);
+    return () => { window.removeEventListener('live-tick', on); clearInterval(id); };
+  }, []);
+
+  const st = (window.LIVE && window.LIVE.feedStatus) || 'STATIC';
+  const ts = window.LIVE && window.LIVE.lastUpdate;
+  const isLive = st === 'LIVE';
+  const label = isLive ? 'LIVE'
+    : st === 'CONNECTING' ? 'CONNECTING'
+    : st === 'FALLBACK' ? 'STATIC DATA'
+    : st === 'STOPPED' ? 'PAUSED'
+    : st;
+  const color = isLive ? GT.green : st === 'CONNECTING' ? GT.amber : GT.red;
+
+  let ago = '';
+  if (isLive && ts) {
+    const s = Math.round((Date.now() - ts) / 1000);
+    ago = s < 60 ? ` · ${s}s ago` : ` · ${Math.floor(s / 60)}m ago`;
+  }
+
+  return (
+    <span style={{ fontFamily: GT.fontMono, fontSize: 9, color, whiteSpace: 'nowrap', ...style }}>
+      {isLive ? '●' : '◌'} {label}{ago}{isLive && suffix ? ' ' + suffix : ''}
+    </span>
+  );
+}
+
 // ── Sparkline ────────────────────────────────────────────────────
 function Spark({ data, w = 80, h = 22, color, strokeWidth = 1.4 }) {
   return (

@@ -1,26 +1,43 @@
 # Ridwan · Chip Desk — Glass Terminal
 
-Live semiconductor equity dashboard covering **NVDA · AMD · MU · TSM**.
-Single-page React+Babel application bundled into one self-contained HTML file
-with live price feed via Yahoo Finance (CORS-proxied) and Stooq fallback.
+Live semiconductor equity dashboard covering **NVDA · AMD · MU · TSM · MRVL**,
+plus 10 global indices on the overview globe. Single-page React+Babel
+application bundled into one self-contained HTML file, with prices from the
+Yahoo Finance v8 chart endpoint.
 
 ## Live data
 
-- **Primary**: Yahoo Finance v8 chart endpoint, rotated through 3 CORS proxies
-  (corsproxy.io, allorigins.win, codetabs.com)
-- **Fallback**: Stooq CSV (no API key, ~15-min delay)
-- **Refresh**: every 30 seconds, dispatched as `live-tick` events to the React
-  tree — no page reload required
-- **Optional realtime**: drop a Finnhub free-tier key in `90c7a459-…js` for
-  sub-second quotes
+- **Source**: Yahoo Finance v8 chart endpoint. The browser cannot call it
+  directly (no CORS header), so every request goes through a proxy.
+- **Locally**: `serve.py` exposes `/api/proxy?url=…`, which forwards to Yahoo
+  from Python. It sends the `User-Agent` Yahoo requires — without one Yahoo
+  answers `429`. Only `query1/query2.finance.yahoo.com` are allowed through, so
+  the endpoint can't be used as an open proxy.
+- **Deployed**: the bundle falls back to three public CORS proxies
+  (corsproxy.io, allorigins.win, codetabs.com). **All three were dead when last
+  checked (Sep 2026)** — corsproxy.io returns `401` and now requires a paid API
+  key, allorigins `520`, codetabs `522`. Until a working proxy is in place, a
+  deployed build shows the seeded static numbers, not live prices. A Netlify
+  Function running the same logic as `serve.py` is the fix.
+- **Refresh**: prices every 30s, indices every 45s, dispatched as `live-tick` /
+  `idx-tick` events to the React tree — no page reload required.
+- **Status**: `window.LIVE.feedStatus` is `CONNECTING` → `LIVE`, or `FALLBACK`
+  when every proxy failed. `window.LIVE.proxy` names the leg that worked. The
+  `LiveDot` component renders this, so the UI never claims "LIVE" over stale
+  numbers.
+
+There is **no** Stooq fallback and **no** Finnhub support in the code — earlier
+versions of this README described both; neither was ever implemented.
 
 ## Local development
 
 ```bash
-# From this folder
 py serve.py 3000
-# → http://localhost:3000/Glass%20Terminal%20-%20Standalone.html
 ```
+
+Then open <http://localhost:3000/index.html>. Pass a different port as the
+first argument if 3000 is taken (`py serve.py 3001`); `.claude/launch.json`
+currently uses 3001.
 
 ## Editing the dashboard
 
@@ -37,11 +54,16 @@ This rewrites `Glass Terminal - Standalone.html` from the current `src/` tree
 and updates the template section from `src/_template.html`. A one-time backup
 is created at `Glass Terminal - Standalone.backup.html`.
 
-Verify the bundle is well-formed:
+Verify the bundle:
 
 ```bash
 py verify_bundle.py
 ```
+
+It checks that every payload decodes, that each entry still matches its `src/`
+file byte for byte (so a forgotten `rebundle.py` is caught), that the template
+and `index.html` are in sync, and that no script the template loads is missing
+from the manifest. Exit code is non-zero on failure, so it can gate a deploy.
 
 ## Deploy
 
@@ -85,12 +107,13 @@ No build command needed (publish dir = `.`).
 | `src/90717615-…jsx` | TabDeepDive + supporting components |
 | `src/9536740f-…js` | Per-ticker data (segments, quarterly, technicals, scenarios) |
 | `src/90c7a459-…js` | Live feed + CORS proxy rotation |
-| `src/54bfb3ba-…js` | Shared primitives (Panel, Kicker, Spark, CandleChart) |
+| `src/54bfb3ba-…js` | Shared primitives (Panel, Kicker, LiveDot, Spark, CandleChart) |
 | `src/049e714a-…jsx` | Hero / site shell |
 | `src/cd7fd865-…js`  | Babel standalone (~3 MB, do not edit) |
 | `rebundle.py` | JSX → HTML bundler |
-| `extract.py` / `verify_bundle.py` | Bundle round-trip utilities |
-| `serve.py` | Local dev server (port 3000) |
+| `extract.py` | Unpacks a bundle back into `src/` |
+| `verify_bundle.py` | Integrity + freshness check (non-zero exit on failure) |
+| `serve.py` | Local dev server + `/api/proxy` Yahoo forwarder |
 
 ## Tech stack
 

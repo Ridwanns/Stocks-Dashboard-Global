@@ -322,7 +322,7 @@ function Hero() {
 
         {/* right side ticker stack */}
         <Reveal delay={250} className="gt-hero-right" style={{ padding: '40px 0 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Panel kicker="Live coverage · today's tape" right="● LIVE" accent={palette.a} p={0}>
+          <Panel kicker="Live coverage · today's tape" right={<LiveDot/>} accent={palette.a} p={0}>
             {ORDER.map((s, i) => {
               const t = TICKERS[s];
               const up = t.chg >= 0;

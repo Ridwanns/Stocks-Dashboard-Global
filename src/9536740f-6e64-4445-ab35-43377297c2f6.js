@@ -1678,7 +1678,12 @@ const LIVE = {
   yahooNewsURL: (sym) => `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${sym}&region=US&lang=en-US`,
   // Same proxy formats that the price feed proves working (note the ?url= and
   // ?quest= query keys — the old corsproxy.io/? without url= silently failed).
+  // On localhost serve.py's own forwarder goes first; the three public proxies
+  // below were all failing as of Sep 2026 (401 / 520 / 522) and remain only as
+  // a fallback for a deployed build.
   corsProxies: [
+    ...(/^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname)
+      ? ['/api/proxy?url='] : []),
     'https://corsproxy.io/?url=',
     'https://api.allorigins.win/raw?url=',
     'https://api.codetabs.com/v1/proxy?quest=',
