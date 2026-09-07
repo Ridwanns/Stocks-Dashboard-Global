@@ -39,16 +39,21 @@
   // It goes first because it's the only leg that reliably works: as of Sep 2026
   // corsproxy.io answers 401 (paid API key now required), allorigins 520 and
   // codetabs 522. They stay in the list as a fallback in case they come back.
+  // Deployed builds use the Cloudflare Worker instead (LIVE.workerProxy, set
+  // in 9536740f-…js) — GitHub Pages is static and cannot run serve.py.
   const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
+  const WORKER = (window.LIVE && window.LIVE.workerProxy) || '';
   const LOCAL_PROXY = url => '/api/proxy?url=' + encodeURIComponent(url);
   const PROXIES = [
     ...(IS_LOCAL ? [LOCAL_PROXY] : []),
+    ...(WORKER ? [url => WORKER + encodeURIComponent(url)] : []),
     url => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
     url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
     url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
   ];
   const PROXY_NAMES = [
     ...(IS_LOCAL ? ['local'] : []),
+    ...(WORKER ? ['worker'] : []),
     'corsproxy.io', 'allorigins', 'codetabs',
   ];
   let proxyIdx = 0;

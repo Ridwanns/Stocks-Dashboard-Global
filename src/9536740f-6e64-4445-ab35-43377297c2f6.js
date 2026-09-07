@@ -1653,7 +1653,19 @@ const NARRATIVE = {
 // ════════════════════════════════════════════════════════════════════
 // LIVE — config for live clock, TradingView heatmap, Yahoo news feed.
 // ════════════════════════════════════════════════════════════════════
+// ── Proxy configuration ─────────────────────────────────────────────
+// Yahoo sends no CORS header, so every request needs a forwarder.
+//   localhost  -> serve.py's /api/proxy
+//   deployed   -> the Cloudflare Worker below (see cloudflare-worker.js)
+// Paste the Worker URL here after deploying it, then run: py rebundle.py
+// It must end in the query key, e.g.
+//   'https://chip-desk-proxy.ridwanns.workers.dev/?url='
+const WORKER_PROXY = '';
+
+const IS_LOCALHOST = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
+
 const LIVE = {
+  workerProxy: WORKER_PROXY,
   timezones: [
     { label: 'NY',   tz: 'America/New_York',   open: '09:30', close: '16:00' },
     { label: 'LDN',  tz: 'Europe/London',      open: '08:00', close: '16:30' },
@@ -1678,12 +1690,12 @@ const LIVE = {
   yahooNewsURL: (sym) => `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${sym}&region=US&lang=en-US`,
   // Same proxy formats that the price feed proves working (note the ?url= and
   // ?quest= query keys — the old corsproxy.io/? without url= silently failed).
-  // On localhost serve.py's own forwarder goes first; the three public proxies
-  // below were all failing as of Sep 2026 (401 / 520 / 522) and remain only as
-  // a fallback for a deployed build.
+  // serve.py's forwarder goes first on localhost, the Worker first once
+  // deployed; the three public proxies below were all failing as of Sep 2026
+  // (401 / 520 / 522) and remain only as a last resort.
   corsProxies: [
-    ...(/^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname)
-      ? ['/api/proxy?url='] : []),
+    ...(IS_LOCALHOST ? ['/api/proxy?url='] : []),
+    ...(WORKER_PROXY ? [WORKER_PROXY] : []),
     'https://corsproxy.io/?url=',
     'https://api.allorigins.win/raw?url=',
     'https://api.codetabs.com/v1/proxy?quest=',

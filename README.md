@@ -13,12 +13,15 @@ Yahoo Finance v8 chart endpoint.
   from Python. It sends the `User-Agent` Yahoo requires — without one Yahoo
   answers `429`. Only `query1/query2.finance.yahoo.com` are allowed through, so
   the endpoint can't be used as an open proxy.
-- **Deployed**: the bundle falls back to three public CORS proxies
-  (corsproxy.io, allorigins.win, codetabs.com). **All three were dead when last
-  checked (Sep 2026)** — corsproxy.io returns `401` and now requires a paid API
-  key, allorigins `520`, codetabs `522`. Until a working proxy is in place, a
-  deployed build shows the seeded static numbers, not live prices. A Netlify
-  Function running the same logic as `serve.py` is the fix.
+- **Deployed**: GitHub Pages serves static files only, so `serve.py` cannot run
+  there. Deploy `cloudflare-worker.js` (free tier) and paste its URL into
+  `WORKER_PROXY` in `src/9536740f-…js`, then `py rebundle.py`. Setup steps are
+  in the header comment of that file.
+- **Last resort**: three public CORS proxies (corsproxy.io, allorigins.win,
+  codetabs.com). **All three were dead when last checked (Sep 2026)** —
+  corsproxy.io returns `401` and now requires a paid API key, allorigins `520`,
+  codetabs `522`. With no local proxy and no Worker configured, the dashboard
+  shows its seeded static numbers and `LiveDot` reports `STATIC DATA`.
 - **Refresh**: prices every 30s, indices every 45s, dispatched as `live-tick` /
   `idx-tick` events to the React tree — no page reload required.
 - **Status**: `window.LIVE.feedStatus` is `CONNECTING` → `LIVE`, or `FALLBACK`
@@ -67,33 +70,28 @@ from the manifest. Exit code is non-zero on failure, so it can gate a deploy.
 
 ## Deploy
 
-### Netlify (drag-and-drop or Git)
+### GitHub Pages (current)
 
-The `netlify.toml` here is preconfigured:
-
-- Root redirect `/` → `/Glass Terminal - Standalone.html`
-- No-cache headers on the main HTML (so refresh always pulls latest)
-- Permissive CSP so the live data fetch + Google Fonts + TradingView widgets
-  all work
-
-**Drag-and-drop**: zip this folder, drop on Netlify dashboard — done.
-
-**Git deploy**: see below.
-
-### GitHub
+Live at <https://ridwanns.github.io/Stocks-Dashboard-Global/>, served straight
+from `main` — pushing is deploying:
 
 ```bash
-# from this folder
-git init
-git add .
-git commit -m "Initial Glass Terminal dashboard"
-git branch -M main
-git remote add origin https://github.com/<your-user>/chip-desk.git
-git push -u origin main
+py rebundle.py && py verify_bundle.py && git add -A && git commit -m "..." && git push
 ```
 
-Then on Netlify: **Add new site → Import from Git → pick the repo**.
-No build command needed (publish dir = `.`).
+`index.html` is what Pages serves at `/`. Pages is **static only**, so live
+prices there depend on the Cloudflare Worker (see *Live data* above); without
+it the dashboard falls back to its seeded numbers and says so.
+
+### Netlify (alternative)
+
+`netlify.toml` is still configured for it — root redirect to the bundle,
+no-cache headers on the main HTML, and a CSP permissive enough for the data
+fetch, Google Fonts and the TradingView widgets. Add new site → Import from
+Git → pick the repo. No build command needed (publish dir = `.`).
+
+A Netlify Function would remove the need for the Worker, since Netlify can run
+server-side code and Pages cannot.
 
 ## File map
 
@@ -114,6 +112,7 @@ No build command needed (publish dir = `.`).
 | `extract.py` | Unpacks a bundle back into `src/` |
 | `verify_bundle.py` | Integrity + freshness check (non-zero exit on failure) |
 | `serve.py` | Local dev server + `/api/proxy` Yahoo forwarder |
+| `cloudflare-worker.js` | Same forwarder for the deployed site (Cloudflare Worker) |
 
 ## Tech stack
 
