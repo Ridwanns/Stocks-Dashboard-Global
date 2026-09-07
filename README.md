@@ -22,12 +22,21 @@ Yahoo Finance v8 chart endpoint.
   corsproxy.io returns `401` and now requires a paid API key, allorigins `520`,
   codetabs `522`. With no local proxy and no Worker configured, the dashboard
   shows its seeded static numbers and `LiveDot` reports `STATIC DATA`.
+- **Snapshot (how the deployed site gets real numbers)**: `fetch_quotes.py`
+  runs on GitHub Actions every 2 hours and commits `data/quotes.json`. The page
+  loads it from its own origin — no proxy, no CORS — and feeds it through the
+  same `updateTicker` path as the live feed, so sparklines, candles and
+  technicals are real too, not just the price. Without it `LIVE.indices` ships
+  empty and the world index board shows `————` forever on Pages.
 - **Refresh**: prices every 30s, indices every 45s, dispatched as `live-tick` /
-  `idx-tick` events to the React tree — no page reload required.
-- **Status**: `window.LIVE.feedStatus` is `CONNECTING` → `LIVE`, or `FALLBACK`
-  when every proxy failed. `window.LIVE.proxy` names the leg that worked. The
-  `LiveDot` component renders this, so the UI never claims "LIVE" over stale
-  numbers.
+  `idx-tick` events to the React tree — no page reload required. When every
+  proxy is down and a snapshot is loaded, proxy polling stops (on a static host
+  they never recover) and the snapshot is re-read every 10 minutes instead.
+- **Status**: `window.LIVE.feedStatus` is `CONNECTING` → `LIVE`, `SNAPSHOT`
+  (real data from `data/quotes.json`, just delayed), or `FALLBACK` (the
+  hand-typed seed numbers, months old). `window.LIVE.proxy` names the leg that
+  worked. `LiveDot` renders this with an age, so the UI never claims "LIVE"
+  over stale numbers.
 
 There is **no** Stooq fallback and **no** Finnhub support in the code — earlier
 versions of this README described both; neither was ever implemented.
@@ -79,9 +88,12 @@ from `main` — pushing is deploying:
 py rebundle.py && py verify_bundle.py && git add -A && git commit -m "..." && git push
 ```
 
-`index.html` is what Pages serves at `/`. Pages is **static only**, so live
-prices there depend on the Cloudflare Worker (see *Live data* above); without
-it the dashboard falls back to its seeded numbers and says so.
+`index.html` is what Pages serves at `/`. Pages is **static only**, so the
+numbers there come from `data/quotes.json`, refreshed every 2 hours by the
+`refresh-quotes` workflow — `SNAPSHOT` in the status badge, with its age. For
+genuinely real-time prices on Pages, deploy `cloudflare-worker.js` as well and
+set `WORKER_PROXY`; the snapshot then only covers the gap before the first
+successful live fetch.
 
 ### Netlify (alternative)
 
@@ -113,6 +125,8 @@ server-side code and Pages cannot.
 | `verify_bundle.py` | Integrity + freshness check (non-zero exit on failure) |
 | `serve.py` | Local dev server + `/api/proxy` Yahoo forwarder |
 | `cloudflare-worker.js` | Same forwarder for the deployed site (Cloudflare Worker) |
+| `fetch_quotes.py` | Builds `data/quotes.json` — the snapshot Pages serves |
+| `.github/workflows/refresh-quotes.yml` | Runs the fetcher every 2h and commits |
 
 ## Tech stack
 

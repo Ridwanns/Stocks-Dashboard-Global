@@ -260,17 +260,28 @@ function LiveDot({ suffix, style }) {
   const st = (window.LIVE && window.LIVE.feedStatus) || 'STATIC';
   const ts = window.LIVE && window.LIVE.lastUpdate;
   const isLive = st === 'LIVE';
+  // SNAPSHOT = real market data from the committed data/quotes.json, just
+  // delayed. FALLBACK = the hand-typed seed numbers, which are months old.
+  const isSnap = st === 'SNAPSHOT';
   const label = isLive ? 'LIVE'
+    : isSnap ? 'SNAPSHOT'
     : st === 'CONNECTING' ? 'CONNECTING'
     : st === 'FALLBACK' ? 'STATIC DATA'
     : st === 'STOPPED' ? 'PAUSED'
     : st;
-  const color = isLive ? GT.green : st === 'CONNECTING' ? GT.amber : GT.red;
+  const color = isLive ? GT.green
+    : (isSnap || st === 'CONNECTING') ? GT.amber
+    : GT.red;
 
+  // Age matters most on a snapshot — that's the number telling you how far
+  // behind the market the page is.
   let ago = '';
-  if (isLive && ts) {
+  if ((isLive || isSnap) && ts) {
     const s = Math.round((Date.now() - ts) / 1000);
-    ago = s < 60 ? ` · ${s}s ago` : ` · ${Math.floor(s / 60)}m ago`;
+    ago = s < 60 ? ` · ${s}s ago`
+      : s < 3600 ? ` · ${Math.floor(s / 60)}m ago`
+      : s < 86400 ? ` · ${Math.floor(s / 3600)}h ago`
+      : ` · ${Math.floor(s / 86400)}d ago`;
   }
 
   return (

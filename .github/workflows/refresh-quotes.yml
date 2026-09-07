@@ -1,0 +1,47 @@
+name: Refresh market snapshot
+
+# GitHub Pages is static, and every public CORS proxy the bundle falls back to
+# is dead, so the deployed dashboard cannot reach Yahoo from the browser. This
+# runs on GitHub's servers instead — no CORS — and commits data/quotes.json,
+# which the page then loads from its own origin.
+#
+# Pushing to main is what redeploys Pages, so the commit is the deploy.
+
+on:
+  schedule:
+    # Every 2 hours on weekdays. Cron is UTC. Tighten it if you want fresher
+    # numbers — each run rewrites one ~57 KB file, so the repo grows slowly.
+    - cron: '0 */2 * * 1-5'
+  workflow_dispatch:        # lets you trigger a run by hand from the Actions tab
+
+concurrency:
+  group: refresh-quotes
+  cancel-in-progress: false
+
+permissions:
+  contents: write           # needed to push the refreshed snapshot
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch quotes from Yahoo
+        run: python fetch_quotes.py
+
+      - name: Commit if the snapshot changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/quotes.json; then
+            echo "Snapshot unchanged — nothing to commit."
+            exit 0
+          fi
+          git add data/quotes.json
+          git commit -m "Refresh market snapshot"
+          git push

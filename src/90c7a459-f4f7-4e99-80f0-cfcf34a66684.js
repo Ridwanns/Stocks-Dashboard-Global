@@ -552,6 +552,7 @@
   // ════════════════════════════════════════════════════════════════════
   var _intervalId = null;
   var _idxIntervalId = null;
+  var _snapIntervalId = null;
 
   async function fetchAll() {
     var updated = 0;
@@ -611,10 +612,53 @@
     return updated;
   }
 
+  // ── Snapshot fallback (data/quotes.json) ──────────────────────────
+  // Written by fetch_quotes.py via GitHub Actions and served from our own
+  // origin, so it needs no proxy and no CORS. On GitHub Pages this is the
+  // only source that works at all; the seeded numbers in 9536740f-…js are
+  // months old, and LIVE.indices ships completely empty, which left the
+  // world index board showing "————" forever on the deployed site.
+  // Shaped exactly like parseChart() output so it can reuse updateTicker.
+  async function loadSnapshot() {
+    var updated = 0;
+    try {
+      var res = await fetch('data/quotes.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return 0;
+      var snap = await res.json();
+      var stamp = Date.parse(snap.generatedAt) || Date.now();
+
+      Object.keys(snap.tickers || {}).forEach(function (sym) {
+        if (updateTicker(sym, snap.tickers[sym])) updated++;
+      });
+
+      var idx = snap.indices || {};
+      Object.keys(idx).forEach(function (id) {
+        window.LIVE.indices[id] = {
+          price: idx[id].price, prevClose: idx[id].prevClose,
+          chg: idx[id].chg, chgPct: idx[id].chgPct, t: stamp,
+        };
+      });
+
+      if (updated || Object.keys(idx).length) {
+        window.LIVE.snapshotAt = snap.generatedAt;
+        window.LIVE.lastUpdate = stamp;
+        window.LIVE.feedStatus = 'SNAPSHOT';
+        window.dispatchEvent(new CustomEvent('live-tick', { detail: { snapshot: true, updated: updated } }));
+        window.dispatchEvent(new CustomEvent('idx-tick', { detail: { snapshot: true } }));
+        console.log('[LiveFeed] Snapshot ' + snap.generatedAt + ': ' + updated +
+                    ' tickers, ' + Object.keys(idx).length + ' indices');
+      }
+    } catch (e) { /* no snapshot committed yet — fall through to the proxies */ }
+    return updated;
+  }
+
   async function startFeed() {
     console.log('[LiveFeed] Starting real-time data feed...');
     window.LIVE.feedStatus = 'CONNECTING';
     window.dispatchEvent(new CustomEvent('live-tick', {detail:{status:'connecting'}}));
+
+    // Paint real numbers immediately, then try to upgrade to a live feed.
+    var snapCount = await loadSnapshot();
 
     // Fetch stocks AND global indices concurrently so the globe lights up as
     // fast as the tickers (previously indices waited for the stock fetch).
@@ -623,18 +667,34 @@
     console.log('[LiveFeed] Initial: ' + n + '/' + SYMBOLS.length + ' tickers updated');
 
     if (n === 0) {
-      window.LIVE.feedStatus = 'FALLBACK';
-      console.warn('[LiveFeed] All proxies failed — using static data as fallback');
+      // A committed snapshot is real market data, just delayed — don't demote
+      // it to FALLBACK, which means "showing the hand-typed seed numbers".
+      window.LIVE.feedStatus = snapCount ? 'SNAPSHOT' : 'FALLBACK';
+      console.warn('[LiveFeed] All proxies failed — ' +
+                   (snapCount ? 'showing the committed snapshot' : 'using static seed data'));
     }
 
-    // Poll every 30 seconds
-    _intervalId = setInterval(function(){ fetchAll(); }, 30000);
-    _idxIntervalId = setInterval(function(){ fetchIndices(); }, 45000);
+    if (n === 0 && snapCount) {
+      // Every proxy is down and we already have real snapshot data. Polling
+      // them again every 30s would just repeat ~65s of doomed requests per
+      // cycle for as long as the tab stays open — on a static host they are
+      // never coming back. Ride the snapshot instead and refresh that.
+      console.warn('[LiveFeed] Proxy polling disabled; refreshing the snapshot instead');
+    } else {
+      _intervalId = setInterval(function(){ fetchAll(); }, 30000);
+      _idxIntervalId = setInterval(function(){ fetchIndices(); }, 45000);
+    }
+
+    // Pick up a newer commit from the refresh workflow without a page reload.
+    _snapIntervalId = setInterval(function(){
+      if (window.LIVE.feedStatus !== 'LIVE') loadSnapshot();
+    }, 600000);
   }
 
   function stopFeed() {
     if (_intervalId) { clearInterval(_intervalId); _intervalId = null; }
     if (_idxIntervalId) { clearInterval(_idxIntervalId); _idxIntervalId = null; }
+    if (_snapIntervalId) { clearInterval(_snapIntervalId); _snapIntervalId = null; }
     window.LIVE.feedStatus = 'STOPPED';
   }
 

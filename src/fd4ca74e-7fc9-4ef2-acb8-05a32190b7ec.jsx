@@ -889,7 +889,6 @@ function GlobalMarketGlobe(){
     };
   },[palette.a,palette.b]);
 
-  const anyData=Object.keys(data).length>0;
   const actM=markets.find(m=>m.id===activeId);
   const actD=activeId?data[activeId]:null;
   const actUp=actD?actD.chgPct>=0:true;
@@ -897,8 +896,7 @@ function GlobalMarketGlobe(){
 
   return(
     <Panel kicker="Global markets · live" title="World index board" accent={palette.b}
-      right={<span style={{display:'flex',alignItems:'center',gap:6,fontFamily:GT.fontMono,fontSize:9,color:anyData?GT.green:GT.amber}}>
-        <span style={{width:5,height:5,borderRadius:'50%',background:anyData?GT.green:GT.amber,boxShadow:anyData?`0 0 6px ${GT.green}`:'none'}}/>{anyData?'LIVE':'CONNECTING'}</span>}>
+      right={<LiveDot/>}>
       <div className="gt-globe-wrap" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'stretch'}}>
         {/* 3D globe + cinematic lock-on HUD */}
         <div className="gt-globe-canvas" style={{position:'relative',height:360,overflow:'hidden'}}
