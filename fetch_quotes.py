@@ -33,6 +33,117 @@ UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
 MAX_CANDLES = 130   # ~6 months of daily bars; enough for RSI/MACD/EMA50/Bollinger
 CHART = 'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval=1d&includePrePost=false'
 
+# ── Fundamentals ────────────────────────────────────────────────────
+# Yahoo's quoteSummary endpoint now demands a crumb, but this timeseries one
+# does not, and it carries every figure the dashboard was holding by hand.
+FUND = ('https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/'
+        'timeseries/{sym}?symbol={sym}&type={types}&period1=1500000000&period2=2000000000')
+
+FUND_TYPES = ','.join([
+    'quarterlyTotalRevenue', 'quarterlyNetIncome',
+    'annualTotalRevenue', 'annualNetIncome', 'annualGrossProfit',
+    'annualDilutedEPS', 'annualFreeCashFlow',
+])
+
+# Month each company's fiscal year ends, straight from SEC's fiscalYearEnd.
+# Needed to label a period end as, say, FY2027 Q2 rather than "July 2026".
+FISCAL_YEAR_END_MONTH = {'NVDA': 1, 'AMD': 12, 'MU': 9, 'MRVL': 1, 'TSM': 12}
+
+# TSMC reports in New Taiwan dollars. Comparing its TWD revenue against USD
+# figures reads as a ~4000% jump, so it must be converted before display.
+FX_SYMBOL = 'https://query1.finance.yahoo.com/v8/finance/chart/{pair}=X?range=5d&interval=1d'
+
+
+def fiscal_label(sym, iso_date):
+    """'2026-07-31' -> 'Q2·27' for a January fiscal-year end."""
+    y, m = int(iso_date[:4]), int(iso_date[5:7])
+    fye = FISCAL_YEAR_END_MONTH.get(sym, 12)
+    fy = y + 1 if m > fye else y
+    start = fye % 12 + 1                      # first month of the fiscal year
+    q = ((m - start) % 12) // 3 + 1
+    return f'Q{q}·{fy % 100:02d}'
+
+
+def money(v):
+    a = abs(v)
+    if a >= 1e12: return f'${v/1e12:.2f}T'
+    if a >= 1e9:  return f'${v/1e9:.1f}B'
+    if a >= 1e6:  return f'${v/1e6:.1f}M'
+    return f'${v:,.0f}'
+
+
+def series(payload, key):
+    for r in (payload or {}).get('timeseries', {}).get('result', []):
+        if key in r:
+            rows = [x for x in r[key] if x]
+            if rows:
+                return rows
+    return []
+
+
+def val(row, fx):
+    """Reported value in USD. Applies fx when the filing currency isn't USD."""
+    raw = (row.get('reportedValue') or {}).get('raw')
+    if raw is None:
+        return None
+    return raw * fx if row.get('currencyCode') == 'TWD' else raw
+
+
+def get_fx(pair='TWDUSD'):
+    d = get(FX_SYMBOL.format(pair=pair))
+    try:
+        return d['chart']['result'][0]['meta']['regularMarketPrice']
+    except (TypeError, KeyError, IndexError):
+        return None
+
+
+def fetch_fundamentals(sym, fx):
+    payload = get(FUND.format(sym=sym, types=FUND_TYPES))
+    if not payload:
+        return None
+
+    qrev = series(payload, 'quarterlyTotalRevenue')
+    qni = {r['asOfDate']: val(r, fx) for r in series(payload, 'quarterlyNetIncome')}
+    quarterly = []
+    for r in qrev[-6:]:
+        rev = val(r, fx)
+        ni = qni.get(r['asOfDate'])
+        if rev is None:
+            continue
+        quarterly.append({
+            'q': fiscal_label(sym, r['asOfDate']),
+            'rev': round(rev / 1e9, 1),
+            'ni': round(ni / 1e9, 2) if ni is not None else None,
+            'end': r['asOfDate'],
+        })
+
+    def last(key):
+        rows = series(payload, key)
+        return val(rows[-1], fx) if rows else None
+
+    rev_fy, ni_fy = last('annualTotalRevenue'), last('annualNetIncome')
+    gp, fcf = last('annualGrossProfit'), last('annualFreeCashFlow')
+    eps = last('annualDilutedEPS')     # per-share: never currency-converted below
+
+    eps_rows = series(payload, 'annualDilutedEPS')
+    eps_raw = (eps_rows[-1].get('reportedValue') or {}).get('raw') if eps_rows else None
+
+    fundamentals = {}
+    if rev_fy: fundamentals['revFy'] = money(rev_fy)
+    if ni_fy:  fundamentals['ni'] = money(ni_fy)
+    if fcf:    fundamentals['fcf'] = money(fcf)
+    if gp and rev_fy: fundamentals['gm'] = f'{gp / rev_fy * 100:.1f}%'
+    if eps_raw is not None:
+        # EPS is per share in the filing currency; convert TWD ADR-style figures
+        # the same way as the totals so it stays consistent with revFy.
+        e = eps_raw * fx if (eps_rows and eps_rows[-1].get('currencyCode') == 'TWD') else eps_raw
+        fundamentals['eps'] = f'${e:.2f}'
+
+    if not quarterly and not fundamentals:
+        return None
+    return {'quarterly': quarterly, 'fundamentals': fundamentals,
+            'asOf': qrev[-1]['asOfDate'] if qrev else None}
+
 
 def get(url, tries=3):
     for attempt in range(tries):
@@ -138,6 +249,29 @@ def main():
             print(f'  {iid:6} {price:>12,.2f}  {snapshot["indices"][iid]["chgPct"]:+.2f}%')
         else:
             print(f'  {iid:6} FAILED')
+        time.sleep(0.4)
+
+    print('Fundamentals:')
+    fx = get_fx('TWDUSD')
+    if fx:
+        print(f'  TWD->USD rate {fx} (for TSM, which reports in TWD)')
+    else:
+        print('  WARNING: no TWD->USD rate; skipping TSM fundamentals rather '
+              'than publishing TWD figures labelled as dollars')
+    snapshot['fx'] = {'TWDUSD': fx} if fx else {}
+
+    for sym in SYMBOLS:
+        if sym == 'TSM' and not fx:
+            continue
+        f = fetch_fundamentals(sym, fx or 1.0)
+        if f:
+            snapshot.setdefault('fundamentals', {})[sym] = f
+            q = f['quarterly'][-1] if f['quarterly'] else None
+            print(f'  {sym:5} {len(f["quarterly"])} quarters'
+                  + (f', latest {q["q"]} rev {q["rev"]}B' if q else '')
+                  + f', FY rev {f["fundamentals"].get("revFy", "-")}')
+        else:
+            print(f'  {sym:5} FAILED')
         time.sleep(0.4)
 
     if not snapshot['tickers']:

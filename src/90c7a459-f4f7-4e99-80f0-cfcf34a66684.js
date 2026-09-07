@@ -632,6 +632,25 @@
         if (updateTicker(sym, snap.tickers[sym])) updated++;
       });
 
+      // Fundamentals: quarterly revenue/income and the headline FY figures.
+      // These were typed by hand and had drifted badly — NVDA's last quarter
+      // read 56.2B against a real 96.2B, MU's 10.6B against 41.5B. TSM's are
+      // converted from TWD by fetch_quotes.py before they get here.
+      var fund = snap.fundamentals || {};
+      Object.keys(fund).forEach(function (sym) {
+        var t = window.TICKERS && window.TICKERS[sym];
+        if (!t) return;
+        var q = (fund[sym].quarterly || []).filter(function (row) {
+          return typeof row.rev === 'number' && typeof row.ni === 'number';
+        });
+        if (q.length) t.quarterly = q;
+        // Merge, don't replace: the seed carries ratios (P/E, PEG, EV/EBITDA)
+        // that this feed doesn't supply.
+        if (fund[sym].fundamentals) {
+          t.fundamentals = Object.assign({}, t.fundamentals, fund[sym].fundamentals);
+        }
+      });
+
       var idx = snap.indices || {};
       Object.keys(idx).forEach(function (id) {
         window.LIVE.indices[id] = {
