@@ -69,10 +69,12 @@
         clearTimeout(timer);
         if (!res.ok) continue;
         const json = await res.json();
-        // The local proxy reports upstream failures as {"error": "..."} with a
-        // non-200 status, but a public proxy can hand back 200 + an error body;
-        // treat a payload with no chart/news as a miss and try the next one.
-        if (json && json.error && !json.chart && !json.news) continue;
+        // A public proxy can answer 200 with a body that is valid JSON but
+        // carries no data — an error object, or a courtesy page. Require a
+        // payload we recognise before treating this leg as the working one,
+        // otherwise LIVE.proxy names a proxy that supplied nothing usable.
+        const usable = json && (json.chart || json.news || json.timeseries);
+        if (!usable) continue;
         proxyIdx = pi;
         window.LIVE.proxy = PROXY_NAMES[pi];
         return json;
