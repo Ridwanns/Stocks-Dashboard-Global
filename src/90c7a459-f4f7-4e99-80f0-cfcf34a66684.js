@@ -553,6 +553,7 @@
   var _intervalId = null;
   var _idxIntervalId = null;
   var _snapIntervalId = null;
+  var _proxiesDead = false;   // set once every proxy has proven unreachable
 
   async function fetchAll() {
     var updated = 0;
@@ -679,6 +680,7 @@
       // them again every 30s would just repeat ~65s of doomed requests per
       // cycle for as long as the tab stays open — on a static host they are
       // never coming back. Ride the snapshot instead and refresh that.
+      _proxiesDead = true;
       console.warn('[LiveFeed] Proxy polling disabled; refreshing the snapshot instead');
     } else {
       _intervalId = setInterval(function(){ fetchAll(); }, 30000);
@@ -714,6 +716,10 @@
   document.addEventListener('visibilitychange', function(){
     if (document.visibilityState === 'visible' && Date.now() - _lastVis > 20000) {
       _lastVis = Date.now();
+      // Same reasoning as the polling guard: once the proxies are known dead
+      // there is nothing to return to them for, and this handler fires every
+      // time the user tabs back. Re-read the snapshot instead.
+      if (_proxiesDead) { loadSnapshot(); return; }
       fetchAll();
       fetchIndices();
     }
