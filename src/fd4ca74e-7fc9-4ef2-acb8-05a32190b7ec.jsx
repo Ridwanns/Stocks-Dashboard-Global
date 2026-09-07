@@ -3048,6 +3048,17 @@ function YahooNewsHub({sym}){
           if(live&&live.length){ setItems(live.slice(0,12)); setStatus('ok'); setLastFetch(new Date()); return; }
         }
       }catch(e){}
+      // SNAPSHOT: headlines committed by the refresh workflow, served from our
+      // own origin. Checked before the RSS chain below because that chain walks
+      // two URLs across three proxies at up to 7s each — on a static host,
+      // where none of them can work, it leaves this panel saying "Fetching
+      // headlines…" for over a minute before failing.
+      const snapNews=window.LIVE&&window.LIVE.newsSnapshot&&window.LIVE.newsSnapshot[sym];
+      if(snapNews&&snapNews.length){
+        if(cancelled) return;
+        setItems(snapNews.slice(0,12)); setStatus('ok'); setLastFetch(new Date());
+        return;
+      }
       // FALLBACK: Google News / Yahoo RSS across every proxy.
       const urls=[];
       if(window.LIVE&&window.LIVE.newsURL) urls.push(window.LIVE.newsURL(sym));

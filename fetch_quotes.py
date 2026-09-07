@@ -54,6 +54,35 @@ FISCAL_YEAR_END_MONTH = {'NVDA': 1, 'AMD': 12, 'MU': 9, 'MRVL': 1, 'TSM': 12}
 FX_SYMBOL = 'https://query1.finance.yahoo.com/v8/finance/chart/{pair}=X?range=5d&interval=1d'
 
 
+NEWS = ('https://query1.finance.yahoo.com/v1/finance/search?q={sym}'
+        '&quotesCount=0&newsCount=15&enableFuzzyQuery=false')
+
+
+def fetch_news(sym):
+    """Same endpoint the client's fetchNews uses, fetched server-side.
+
+    Without this the News tab on Pages spends ~66s walking every dead proxy
+    before it gives up, so it just reads "Fetching headlines…" indefinitely.
+    """
+    d = get(NEWS.format(sym=sym))
+    out = []
+    for n in (d or {}).get('news', []) or []:
+        title = (n.get('title') or '').strip()
+        if not title:
+            continue
+        tickers = n.get('relatedTickers') or []
+        pub = n.get('publisher') or ''
+        ts = n.get('providerPublishTime')
+        out.append({
+            'title': title,
+            'link': n.get('link') or '#',
+            'publisher': pub,
+            'date': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(ts)) if ts else '',
+            'desc': pub + (' · ' + ', '.join(tickers[:4]) if tickers else ''),
+        })
+    return out[:12]
+
+
 def fiscal_label(sym, iso_date):
     """'2026-07-31' -> 'Q2·27' for a January fiscal-year end."""
     y, m = int(iso_date[:4]), int(iso_date[5:7])
@@ -272,6 +301,16 @@ def main():
                   + f', FY rev {f["fundamentals"].get("revFy", "-")}')
         else:
             print(f'  {sym:5} FAILED')
+        time.sleep(0.4)
+
+    print('News:')
+    for sym in SYMBOLS:
+        items = fetch_news(sym)
+        if items:
+            snapshot.setdefault('news', {})[sym] = items
+            print(f'  {sym:5} {len(items)} headlines — {items[0]["title"][:52]}')
+        else:
+            print(f'  {sym:5} none')
         time.sleep(0.4)
 
     if not snapshot['tickers']:

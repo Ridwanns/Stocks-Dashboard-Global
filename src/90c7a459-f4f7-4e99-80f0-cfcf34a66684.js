@@ -651,6 +651,10 @@
         }
       });
 
+      // Headlines, so the News tab has something to show when the proxies are
+      // down instead of sitting on "Fetching headlines…" for a minute.
+      if (snap.news) window.LIVE.newsSnapshot = snap.news;
+
       var idx = snap.indices || {};
       Object.keys(idx).forEach(function (id) {
         window.LIVE.indices[id] = {
