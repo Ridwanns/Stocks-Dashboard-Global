@@ -177,8 +177,11 @@ def recipients():
 
 
 def send(html, subject):
-    user = os.environ.get('GMAIL_USER')
-    pw = os.environ.get('GMAIL_APP_PASSWORD')
+    user = (os.environ.get('GMAIL_USER') or '').strip()
+    # Google shows App Passwords as "abcd efgh ijkl mnop", and pasting that
+    # verbatim gives 19 characters, which Gmail rejects with 535. They never
+    # contain spaces, so stripping them is safe and saves a round trip.
+    pw = (os.environ.get('GMAIL_APP_PASSWORD') or '').replace(' ', '').strip()
     to = recipients()
     if not user or not pw:
         print('GMAIL_USER / GMAIL_APP_PASSWORD not set — built the file but sent nothing.')
