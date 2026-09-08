@@ -12,7 +12,7 @@ get real sparklines, candles and technicals rather than a price-only patch.
 
 Usage:  py fetch_quotes.py
 """
-import json, os, sys, time, urllib.request, urllib.error
+import json, math, os, random, sys, time, urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, 'data', 'quotes.json')
@@ -30,7 +30,10 @@ INDICES = {
 UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/126.0 Safari/537.36')
 
-MAX_CANDLES = 130   # ~6 months of daily bars; enough for RSI/MACD/EMA50/Bollinger
+# The client needs n >= 200 closes before it will compute EMA 200; at 130 it
+# rendered "INSUFF DATA" permanently. 260 (~1 trading year) clears that with
+# room to spare and is also the window the risk metrics below are measured on.
+MAX_CANDLES = 260
 CHART = 'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval=1d&includePrePost=false'
 
 # ── Fundamentals ────────────────────────────────────────────────────
@@ -56,6 +59,167 @@ FX_SYMBOL = 'https://query1.finance.yahoo.com/v8/finance/chart/{pair}=X?range=5d
 
 NEWS = ('https://query1.finance.yahoo.com/v1/finance/search?q={sym}'
         '&quotesCount=0&newsCount=15&enableFuzzyQuery=false')
+
+# ── Quant model ─────────────────────────────────────────────────────
+# Everything below is arithmetic on the observed price series: volatility,
+# drawdown, VaR/CVaR, Sharpe, Sortino, beta, correlation, and a GBM Monte
+# Carlo. The DCF assumptions, fair-value weights and peer multiples are
+# deliberately NOT touched -- those are judgement calls, not measurements.
+BENCHMARK = '%5EGSPC'      # S&P 500, for beta
+RISK_FREE = '%5EIRX'       # 13-week T-bill, quoted in percent
+EQUITY_RISK_PREMIUM = 0.055   # matches the WACC block already in the dashboard
+TRADING_DAYS = 252
+MC_SIMS = 10000
+
+
+def log_returns(closes):
+    return [math.log(closes[i] / closes[i - 1])
+            for i in range(1, len(closes)) if closes[i - 1] > 0 and closes[i] > 0]
+
+
+def stdev(xs):
+    if len(xs) < 2:
+        return 0.0
+    m = sum(xs) / len(xs)
+    return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def percentile(sorted_xs, p):
+    if not sorted_xs:
+        return None
+    k = (len(sorted_xs) - 1) * p
+    lo, hi = math.floor(k), math.ceil(k)
+    if lo == hi:
+        return sorted_xs[int(k)]
+    return sorted_xs[lo] * (hi - k) + sorted_xs[hi] * (k - lo)
+
+
+def max_drawdown(closes):
+    peak, worst = closes[0], 0.0
+    for c in closes:
+        peak = max(peak, c)
+        worst = min(worst, c / peak - 1)
+    return worst
+
+
+def quant_metrics(closes, mkt_returns, basket_returns, rf_annual):
+    """Risk figures + a GBM Monte Carlo, all from the observed series."""
+    r = log_returns(closes)
+    if len(r) < 60:
+        return None
+    sd = stdev(r)
+    vol = sd * math.sqrt(TRADING_DAYS)
+    mean_annual = sum(r) / len(r) * TRADING_DAYS
+
+    downside = [x for x in r if x < 0]
+    dstd = stdev(downside) * math.sqrt(TRADING_DAYS) if len(downside) > 1 else 0.0
+
+    sharpe = (mean_annual - rf_annual) / vol if vol else 0.0
+    sortino = (mean_annual - rf_annual) / dstd if dstd else 0.0
+
+    ordered = sorted(r)
+    var95 = percentile(ordered, 0.05)
+    tail = [x for x in ordered if x <= var95]
+    cvar95 = sum(tail) / len(tail) if tail else var95
+
+    def pair_beta(a, b):
+        n = min(len(a), len(b))
+        if n < 60:
+            return None
+        a, b = a[-n:], b[-n:]
+        ma, mb = sum(a) / n, sum(b) / n
+        cov = sum((a[i] - ma) * (b[i] - mb) for i in range(n)) / (n - 1)
+        var = sum((x - mb) ** 2 for x in b) / (n - 1)
+        return cov / var if var else None
+
+    def pair_corr(a, b):
+        n = min(len(a), len(b))
+        if n < 60:
+            return None
+        a, b = a[-n:], b[-n:]
+        sa, sb = stdev(a), stdev(b)
+        if not sa or not sb:
+            return None
+        ma, mb = sum(a) / n, sum(b) / n
+        cov = sum((a[i] - ma) * (b[i] - mb) for i in range(n)) / (n - 1)
+        return cov / (sa * sb)
+
+    beta = pair_beta(r, mkt_returns) if mkt_returns else None
+    corr = pair_corr(r, basket_returns) if basket_returns else None
+
+    # Expected return via CAPM rather than an invented number, so the drift
+    # is tied to the measured beta and the live risk-free rate.
+    mu = (rf_annual + beta * EQUITY_RISK_PREMIUM) if beta is not None else mean_annual
+
+    s0 = closes[-1]
+    rng = random.Random(42)          # fixed seed: same inputs -> same output,
+    finals = []                      # so a rerun doesn't churn the committed file
+    drift = (mu - 0.5 * vol ** 2)
+    for _ in range(MC_SIMS):
+        finals.append(s0 * math.exp(drift + vol * rng.gauss(0, 1)))
+    finals.sort()
+
+    p = lambda q: percentile(finals, q)
+    above = lambda x: sum(1 for f in finals if f > x) / len(finals) * 100
+
+    return {
+        'vol': vol, 'meanAnnual': mean_annual, 'sharpe': sharpe, 'sortino': sortino,
+        'maxDD': max_drawdown(closes), 'var95': var95, 'cvar95': cvar95,
+        'beta': beta, 'corr': corr, 'mu': mu, 'price': s0, 'rf': rf_annual,
+        'mc': {
+            'p5': p(0.05), 'p25': p(0.25), 'p50': p(0.50),
+            'p75': p(0.75), 'p95': p(0.95),
+            'mean': sum(finals) / len(finals),
+            'pAboveCurrent': above(s0), 'pAbove25pct': above(s0 * 1.25),
+        },
+    }
+
+
+def quant_payload(m):
+    """Shape the metrics into the arrays the Quant tab already renders."""
+    pct = lambda x: f'{x * 100:.1f}%'
+    usd = lambda x: f'${x:,.0f}'
+    tone_neg = 'r'
+    risk = []
+    if m['beta'] is not None:
+        risk.append(['Beta (vs S&P 500, 1Y daily)', f'{m["beta"]:.2f}', ''])
+    risk += [
+        ['Annualized Volatility', pct(m['vol']), 'y'],
+        ['Sharpe Ratio (1Y)', f'{m["sharpe"]:.2f}', 'g' if m['sharpe'] > 0 else 'r'],
+        ['Sortino Ratio (1Y)', f'{m["sortino"]:.2f}', 'g' if m['sortino'] > 0 else 'r'],
+        ['Max Drawdown (1Y)', pct(m['maxDD']), tone_neg],
+        ['VaR (95%, 1-Day)', pct(m['var95']), tone_neg],
+        ['CVaR (95%, 1-Day)', pct(m['cvar95']), tone_neg],
+    ]
+    if m['corr'] is not None:
+        risk.append(['Correlation w/ Basket', f'{m["corr"]:.2f}', ''])
+
+    mc = m['mc']
+    return {
+        'risk': risk,
+        'mcParams': [
+            ['Current Price', f'${m["price"]:,.2f}', 'a'],
+            ['Expected Return (CAPM)', pct(m['mu']), 'g' if m['mu'] > 0 else 'r'],
+            ['Annual Volatility (σ)', pct(m['vol']), ''],
+            ['Risk-Free Rate', pct(m['rf']), ''],
+            ['Time Horizon', f'{TRADING_DAYS} trading days', ''],
+            ['Simulations', f'{MC_SIMS:,}', ''],
+            ['Model', 'GBM', ''],
+        ],
+        'mcResults': [
+            {'label': '5th · worst', 'px': round(mc['p5']), 'tone': 'r'},
+            {'label': '25th', 'px': round(mc['p25']), 'tone': 'y'},
+            {'label': '50th · median', 'px': round(mc['p50']), 'tone': 'a'},
+            {'label': '75th', 'px': round(mc['p75']), 'tone': 'g'},
+            {'label': '95th · best', 'px': round(mc['p95']), 'tone': 'g'},
+        ],
+        'mcSummary': [
+            ['Mean Price', usd(mc['mean']), 'a', True],
+            ['Probability > Current', f'{mc["pAboveCurrent"]:.0f}%',
+             'g' if mc['pAboveCurrent'] >= 50 else 'y'],
+            ['Probability > +25%', f'{mc["pAbove25pct"]:.0f}%', 'y'],
+        ],
+    }
 
 
 def fetch_news(sym):
@@ -256,7 +420,7 @@ def main():
 
     print('Tickers:')
     for sym in SYMBOLS:
-        data = parse_chart(get(CHART.format(sym=sym, rng='6mo')))
+        data = parse_chart(get(CHART.format(sym=sym, rng='2y')))
         if data:
             snapshot['tickers'][sym] = data
             print(f'  {sym:5} {data["price"]:>10.2f}  {len(data["candles"])} bars')
@@ -302,6 +466,71 @@ def main():
         else:
             print(f'  {sym:5} FAILED')
         time.sleep(0.4)
+
+    print('Quant model:')
+    # Risk-free: ^IRX is quoted in percent (3.757 means 3.757%).
+    irx = parse_chart(get(CHART.format(sym=RISK_FREE, rng='5d')))
+    rf = (irx['price'] / 100.0) if irx and irx.get('price') else 0.0425
+    print(f'  risk-free {rf*100:.2f}% (13-week T-bill)'
+          + ('' if irx else ' [fallback, ^IRX unavailable]'))
+
+    bench = parse_chart(get(CHART.format(sym=BENCHMARK, rng='2y')))
+    bench_map = {c['t']: c['c'] for c in bench['candles']} if bench else {}
+
+    # date -> close, per ticker, so returns can be aligned on shared sessions
+    close_maps = {s: {c['t']: c['c'] for c in snapshot['tickers'][s]['candles']}
+                  for s in snapshot['tickers']}
+
+    def aligned(a_map, b_map):
+        days = sorted(set(a_map) & set(b_map))
+        if len(days) < 61:
+            return [], []
+        return (log_returns([a_map[d] for d in days]),
+                log_returns([b_map[d] for d in days]))
+
+    for sym in SYMBOLS:
+        cm = close_maps.get(sym)
+        if not cm:
+            continue
+        closes = [cm[d] for d in sorted(cm)]
+
+        stock_r, mkt_r = aligned(cm, bench_map) if bench_map else ([], [])
+
+        # "Basket" = the equal-weighted average return of the other four names,
+        # which is what the correlation line is meant to measure against.
+        peers = [close_maps[o] for o in close_maps if o != sym]
+        basket_r = []
+        if peers:
+            shared = sorted(set(cm).intersection(*[set(p) for p in peers]))
+            if len(shared) > 61:
+                series_r = [log_returns([p[d] for d in shared]) for p in peers]
+                n = min(len(x) for x in series_r)
+                basket_r = [sum(x[i] for x in series_r) / len(series_r) for i in range(n)]
+                stock_vs_basket = log_returns([cm[d] for d in shared])
+            else:
+                stock_vs_basket = []
+        else:
+            stock_vs_basket = []
+
+        m = quant_metrics(closes, mkt_r if mkt_r else None,
+                          basket_r if basket_r else None, rf)
+        if not m:
+            print(f'  {sym:5} skipped (not enough history)')
+            continue
+        # correlation must compare the stock over the SAME shared sessions
+        if basket_r and stock_vs_basket:
+            n = min(len(stock_vs_basket), len(basket_r))
+            a, b = stock_vs_basket[-n:], basket_r[-n:]
+            sa, sb = stdev(a), stdev(b)
+            if sa and sb:
+                ma, mb = sum(a) / n, sum(b) / n
+                cov = sum((a[i] - ma) * (b[i] - mb) for i in range(n)) / (n - 1)
+                m['corr'] = cov / (sa * sb)
+
+        snapshot.setdefault('quant', {})[sym] = quant_payload(m)
+        print(f'  {sym:5} vol {m["vol"]*100:.1f}%  beta '
+              + (f'{m["beta"]:.2f}' if m['beta'] is not None else '  n/a')
+              + f'  maxDD {m["maxDD"]*100:.1f}%  median {m["mc"]["p50"]:.0f}')
 
     print('News:')
     for sym in SYMBOLS:

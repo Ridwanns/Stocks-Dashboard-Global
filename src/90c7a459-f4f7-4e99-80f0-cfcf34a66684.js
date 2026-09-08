@@ -104,7 +104,9 @@
 
   // ── Yahoo Finance chart endpoint ──────────────────────────────────
   async function fetchChart(sym, range, interval) {
-    range = range || '6mo'; interval = interval || '1d';
+    // 1y, not 6mo: EMA 200 needs 200 closes and 6 months only yields ~128,
+    // which left the EMA 200 row stuck on "INSUFF DATA".
+    range = range || '1y'; interval = interval || '1d';
     const yfSym = YF_MAP[sym] || sym;
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + yfSym +
       '?range=' + range + '&interval=' + interval + '&includePrePost=false';
@@ -560,7 +562,7 @@
     for (var i=0; i<SYMBOLS.length; i++) {
       var sym = SYMBOLS[i];
       try {
-        var raw = await fetchChart(sym, '6mo', '1d');
+        var raw = await fetchChart(sym, '1y', '1d');
         var data = parseChart(raw);
         if (data && updateTicker(sym, data)) updated++;
       } catch(e) {
@@ -654,6 +656,17 @@
       // Headlines, so the News tab has something to show when the proxies are
       // down instead of sitting on "Fetching headlines…" for a minute.
       if (snap.news) window.LIVE.newsSnapshot = snap.news;
+
+      // Quant: only the measured parts — volatility, drawdown, VaR/CVaR,
+      // Sharpe, Sortino, beta, correlation and the Monte Carlo run off them.
+      // The DCF assumptions, fair-value weights and peer multiples are
+      // judgement and stay exactly as written.
+      var quant = snap.quant || {};
+      Object.keys(quant).forEach(function (sym) {
+        var t = window.TICKERS && window.TICKERS[sym];
+        if (!t || !t.quant) return;
+        t.quant = Object.assign({}, t.quant, quant[sym]);
+      });
 
       var idx = snap.indices || {};
       Object.keys(idx).forEach(function (id) {
