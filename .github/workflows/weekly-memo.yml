@@ -1,0 +1,60 @@
+name: Weekly memo
+
+# Sends one memo to one address. There is no subscriber list and no signup
+# form -- the panel on the site never had a submit handler and has been
+# removed. Refreshes the data first so the memo reflects the week's close.
+#
+# Requires three repository secrets (Settings -> Secrets and variables ->
+# Actions). Add them yourself; they are never visible in the logs:
+#   GMAIL_USER          the sending Gmail address
+#   GMAIL_APP_PASSWORD  a 16-char App Password from myaccount.google.com/apppasswords
+#                       (needs 2-step verification on; this is NOT your password)
+#   MEMO_TO             recipient, optional -- defaults to GMAIL_USER
+#
+# Without them the job still runs and commits the memo to memos/, it just
+# doesn't send anything.
+
+on:
+  schedule:
+    # 15:00 UTC Sunday = 22:00 WIB, the slot the site already advertised.
+    - cron: '0 15 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-memo
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  memo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Refresh the snapshot
+        run: python fetch_quotes.py
+
+      - name: Build and send the memo
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MEMO_TO: ${{ secrets.MEMO_TO }}
+        run: python build_memo.py --send
+
+      - name: Commit the memo and refreshed data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/quotes.json memos/
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit -m "Weekly memo $(date -u +%Y-%m-%d)"
+          git push
