@@ -77,6 +77,50 @@ file byte for byte (so a forgotten `rebundle.py` is caught), that the template
 and `index.html` are in sync, and that no script the template loads is missing
 from the manifest. Exit code is non-zero on failure, so it can gate a deploy.
 
+## Weekly memo
+
+`build_memo.py` renders a memo from `data/quotes.json` — price with day, week
+and month change, RSI off the same closes the dashboard uses, volatility and
+max drawdown from the quant block, latest quarterly revenue, the ten global
+indices, and two headlines per name. It writes `memos/<date>.html` and, when
+Chromium is available, the same memo as a PDF.
+
+`.github/workflows/weekly-memo.yml` runs it every Sunday at 15:00 UTC (22:00
+WIB), mails the PDF, and commits the memo to `memos/`. There is no subscriber
+list and no signup: the panel that used to sit on the site had no submit
+handler and swallowed every address typed into it.
+
+Three ways to send one:
+
+| How | What it does |
+| --- | --- |
+| Schedule | Sunday, to `MEMO_TO` (or `GMAIL_USER`) |
+| Actions tab | **Run workflow** takes a recipient — any address, comma-separated for several |
+| The form on the site | Posts to the Worker, which triggers the workflow |
+
+Mail needs two repository secrets: `GMAIL_USER` and `GMAIL_APP_PASSWORD` (a
+16-character App Password, not the account password — spaces are stripped, so
+pasting Google's `abcd efgh ijkl mnop` as-is works). Without them the memo is
+still built and archived; nothing is sent.
+
+### The request form
+
+A static page cannot send mail, so the form posts to `cloudflare-worker.js`,
+which holds a GitHub token as a Worker secret (`GITHUB_TOKEN`, fine-grained,
+Contents: read and write on this repo only) and fires a `repository_dispatch`.
+The token never reaches the browser; in the page's JavaScript anyone could read
+it and run workflows here.
+
+A public form that mails a document to any address it is handed is an open
+relay, so the endpoint validates the address, restricts callers by Origin, and
+limits each IP to one request per 10 minutes and five a day. That limit uses
+the Cache API, which is per-datacenter and therefore best-effort — enough for
+casual abuse, not a determined distributed attacker. The workflow re-validates
+the address and caps a request at five recipients.
+
+Set `MEMO_ENDPOINT` in `src/9536740f-…js` to the Worker's `/memo` URL and
+rebundle. Left blank, the form is not rendered at all.
+
 ## Deploy
 
 ### GitHub Pages (current)
@@ -124,6 +168,8 @@ server-side code and Pages cannot.
 | `extract.py` | Unpacks a bundle back into `src/` |
 | `verify_bundle.py` | Integrity + freshness check (non-zero exit on failure) |
 | `serve.py` | Local dev server + `/api/proxy` Yahoo forwarder |
+| `build_memo.py` | Renders the weekly memo (HTML + PDF) and mails it |
+| `.github/workflows/weekly-memo.yml` | Sunday send, manual send, and form requests |
 | `cloudflare-worker.js` | Same forwarder for the deployed site (Cloudflare Worker) |
 | `fetch_quotes.py` | Builds `data/quotes.json` — the snapshot Pages serves |
 | `.github/workflows/refresh-quotes.yml` | Runs the fetcher every 2h and commits |

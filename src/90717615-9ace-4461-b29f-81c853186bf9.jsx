@@ -32,9 +32,6 @@ const { useState: pgUseState, useEffect: pgUseEffect, useRef: pgUseRef } = React
       .gt-nav-mkt        { display: none !important; }
       .gt-section-pad    { padding: 60px 0 !important; }
       .gt-section-inner  { padding: 0 18px !important; }
-      .gt-sub-input-row  { flex-direction: column !important; border-radius: 12px !important; }
-      .gt-sub-input-row input  { border-bottom: 1px solid rgba(255,255,255,.12) !important; border-radius: 0 !important; }
-      .gt-sub-input-row button { border-radius: 100px !important; width: 100% !important; padding: 13px !important; }
       .gt-footer-row     { flex-direction: column !important; gap: 8px !important; align-items: flex-start !important; }
     }
     @media (max-width: 480px) {
