@@ -21,7 +21,7 @@ Email needs three environment variables, supplied by GitHub Secrets:
     GMAIL_APP_PASSWORD  a 16-character App Password (NOT the account password)
     MEMO_TO             recipient; defaults to GMAIL_USER
 """
-import json, os, smtplib, ssl, sys, time
+import json, os, re, smtplib, ssl, sys, time
 from email.message import EmailMessage
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -201,6 +201,11 @@ def render_pdf(html_path):
     return pdf_path
 
 
+# Requests can arrive from the public form via the Worker, so an address is
+# validated here too rather than trusting whatever reached the workflow.
+EMAIL_RE = re.compile(r'^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$')
+
+
 def recipients():
     """--to wins, then MEMO_TO, then the sending account. Comma-separated."""
     raw = ''
@@ -209,7 +214,14 @@ def recipients():
         if i + 1 < len(sys.argv):
             raw = sys.argv[i + 1]
     raw = raw or os.environ.get('MEMO_TO') or os.environ.get('GMAIL_USER') or ''
-    return [a.strip() for a in raw.split(',') if a.strip()]
+    out, bad = [], []
+    for a in (x.strip() for x in raw.split(',')):
+        if not a:
+            continue
+        (out if EMAIL_RE.match(a) else bad).append(a)
+    for a in bad:
+        print(f'  ignoring malformed recipient: {a[:40]!r}')
+    return out[:5]     # a single request never fans out to a crowd
 
 
 def send(html, subject, pdf_path=None):

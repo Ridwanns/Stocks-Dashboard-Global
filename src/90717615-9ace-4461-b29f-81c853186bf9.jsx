@@ -509,6 +509,79 @@ function About() {
 
 
 // ── Past Memos Archive ────────────────────────────────────────────
+// ── Memo request form ────────────────────────────────────────────
+// Posts an address to the Cloudflare Worker, which triggers the GitHub
+// workflow that renders the PDF and mails it. Renders nothing at all when
+// LIVE.memoEndpoint is unset: the previous box on this page had no submit
+// handler and swallowed everything typed into it, and a form that silently
+// does nothing is worse than an honest absence.
+function MemoRequestForm({ palette }) {
+  const endpoint = (typeof window !== 'undefined' && window.LIVE && window.LIVE.memoEndpoint) || '';
+  const [email, setEmail] = pgUseState('');
+  const [state, setState] = pgUseState('idle');   // idle | sending | ok | error
+  const [note, setNote] = pgUseState('');
+
+  if (!endpoint) return null;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (state === 'sending') return;
+    setState('sending'); setNote('');
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setState('ok');
+        setNote(data.message || 'On its way.');
+        setEmail('');
+      } else {
+        setState('error');
+        setNote(data.error || `Request failed (${res.status}).`);
+      }
+    } catch (err) {
+      setState('error');
+      setNote('Could not reach the server. Try again in a moment.');
+    }
+  };
+
+  const busy = state === 'sending';
+  return (
+    <form onSubmit={submit} style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input
+          type="email" required value={email} disabled={busy}
+          onChange={(e) => { setEmail(e.target.value); if (state !== 'idle') setState('idle'); }}
+          placeholder="you@email.com" aria-label="Email address"
+          style={{
+            flex: '1 1 220px', minWidth: 0, padding: '11px 14px',
+            background: 'rgba(15,23,42,.6)', color: GT.text,
+            border: `1px solid ${palette.edge}`, borderRadius: 8,
+            fontFamily: GT.fontMono, fontSize: 13, outline: 'none',
+          }}
+        />
+        <button type="submit" disabled={busy} style={{
+          padding: '11px 20px', background: busy ? 'rgba(148,163,184,.3)' : palette.a,
+          color: '#fff', border: 'none', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+          fontFamily: GT.fontMono, fontSize: 12, fontWeight: 600, letterSpacing: 1,
+        }}>{busy ? 'SENDING…' : 'EMAIL ME THE PDF'}</button>
+      </div>
+      {note && (
+        <div style={{
+          marginTop: 10, fontSize: 12, lineHeight: 1.5,
+          color: state === 'ok' ? GT.green : state === 'error' ? GT.red : GT.textDim,
+        }}>{note}</div>
+      )}
+      <div style={{ marginTop: 8, fontSize: 10.5, color: 'rgba(148,163,184,.6)', lineHeight: 1.5 }}>
+        One memo per 10 minutes. The address is used to send this PDF and is not stored.
+      </div>
+    </form>
+  );
+}
+
 function PastMemosArchive({ palette, headline }) {
   const [expanded, setExpanded] = pgUseState(null);
 
@@ -712,6 +785,7 @@ function Contact() {
                 dashboard runs on — prices, technicals, risk model and headlines,
                 as they stood at the close.
               </div>
+              <MemoRequestForm palette={palette} />
             </Panel>
           </Reveal>
         </div>

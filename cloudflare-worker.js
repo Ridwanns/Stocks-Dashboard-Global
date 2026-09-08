@@ -63,13 +63,116 @@ function jsonError(message, status, origin) {
   return new Response(JSON.stringify({ error: message }), { status, headers: h });
 }
 
+// ── Memo requests ───────────────────────────────────────────────────
+// The form on the site posts an address here. This Worker holds the GitHub
+// token and triggers the workflow, which renders the PDF and sends it from
+// the Gmail account already configured. The token stays server-side: putting
+// it in the page's JavaScript would let anyone read it and run workflows in
+// the repository.
+const REPO = 'Ridwanns/Stocks-Dashboard-Global';
+const DISPATCH_EVENT = 'send-memo';
+
+// A public form that mails a document to any address it is given is an open
+// relay if left unguarded — someone can point it at a stranger repeatedly,
+// and it is your Gmail account and your Actions minutes doing the work. These
+// limits are per client IP.
+const COOLDOWN_SECONDS = 600;   // one request per address-giver every 10 min
+const DAILY_LIMIT = 5;
+
+// Deliberately conservative: no display names, no quoted local parts, no
+// addresses long enough to be a payload.
+const EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/;
+
+async function rateLimited(ip) {
+  // Cache API rather than KV so the Worker needs no extra binding to deploy.
+  // It is per-datacenter and therefore best-effort, not a hard guarantee —
+  // enough to stop casual abuse, not a determined distributed attacker.
+  const cache = caches.default;
+  const key = (suffix) => new Request(`https://ratelimit.invalid/${encodeURIComponent(ip)}/${suffix}`);
+
+  const recent = await cache.match(key('recent'));
+  if (recent) return 'cooldown';
+
+  let count = 0;
+  const dayHit = await cache.match(key('day'));
+  if (dayHit) count = parseInt(await dayHit.text(), 10) || 0;
+  if (count >= DAILY_LIMIT) return 'daily';
+
+  await cache.put(key('recent'), new Response('1', {
+    headers: { 'Cache-Control': `max-age=${COOLDOWN_SECONDS}` },
+  }));
+  await cache.put(key('day'), new Response(String(count + 1), {
+    headers: { 'Cache-Control': 'max-age=86400' },
+  }));
+  return null;
+}
+
+async function handleMemo(request, env, origin) {
+  if (!origin) return jsonError('origin not allowed', 403, origin);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('expected JSON', 400, origin);
+  }
+
+  const email = String(body && body.email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return jsonError('that does not look like an email address', 400, origin);
+
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const limit = await rateLimited(ip);
+  if (limit === 'cooldown') {
+    return jsonError('one memo per 10 minutes — try again shortly', 429, origin);
+  }
+  if (limit === 'daily') {
+    return jsonError('daily limit reached', 429, origin);
+  }
+
+  if (!env.GITHUB_TOKEN) return jsonError('worker is missing GITHUB_TOKEN', 500, origin);
+
+  const gh = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'chip-desk-memo-worker',
+    },
+    body: JSON.stringify({
+      event_type: DISPATCH_EVENT,
+      client_payload: { email },
+    }),
+  });
+
+  if (gh.status !== 204) {
+    const detail = (await gh.text()).slice(0, 200);
+    return jsonError(`GitHub refused the trigger (${gh.status}) ${detail}`, 502, origin);
+  }
+
+  const headers = corsHeaders(origin);
+  headers.set('Content-Type', 'application/json');
+  return new Response(JSON.stringify({
+    ok: true,
+    message: 'On its way — the memo takes a minute or two to build.',
+  }), { status: 202, headers });
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const origin = allowOrigin(request.headers.get('Origin'));
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+      const h = corsHeaders(origin);
+      h.set('Access-Control-Allow-Headers', 'Content-Type');
+      return new Response(null, { status: 204, headers: h });
     }
+
+    if (new URL(request.url).pathname === '/memo') {
+      if (request.method !== 'POST') return jsonError('POST only', 405, origin);
+      return handleMemo(request, env, origin);
+    }
+
     if (request.method !== 'GET') {
       return jsonError('method not allowed', 405, origin);
     }

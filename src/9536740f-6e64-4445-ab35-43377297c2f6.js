@@ -1662,10 +1662,18 @@ const NARRATIVE = {
 //   'https://chip-desk-proxy.ridwanns.workers.dev/?url='
 const WORKER_PROXY = '';
 
+// Same Worker, /memo endpoint: takes an address and asks GitHub Actions to
+// build the memo and mail the PDF. Leave blank and the form is not rendered
+// at all — a form that cannot submit is worse than no form, which is exactly
+// what the old "Subscribe" box was.
+//   e.g. 'https://chip-desk-proxy.ridwanns.workers.dev/memo'
+const MEMO_ENDPOINT = '';
+
 const IS_LOCALHOST = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
 
 const LIVE = {
   workerProxy: WORKER_PROXY,
+  memoEndpoint: MEMO_ENDPOINT,
   timezones: [
     { label: 'NY',   tz: 'America/New_York',   open: '09:30', close: '16:00' },
     { label: 'LDN',  tz: 'Europe/London',      open: '08:00', close: '16:30' },

@@ -24,6 +24,12 @@ on:
         description: 'Send the memo to this address (blank = MEMO_TO / GMAIL_USER)'
         required: false
         type: string
+  # Fired by the Cloudflare Worker when someone submits the form on the site.
+  # The Worker validates the address and rate-limits before getting here; the
+  # job re-validates anyway, since a dispatch could come from anything holding
+  # the token.
+  repository_dispatch:
+    types: [send-memo]
 
 concurrency:
   group: weekly-memo
@@ -56,13 +62,14 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           # A recipient typed into the Run workflow box wins over the secret,
           # so a memo can be sent to anyone without editing anything.
-          MEMO_TO: ${{ inputs.recipient || secrets.MEMO_TO }}
+          MEMO_TO: ${{ github.event.client_payload.email || inputs.recipient || secrets.MEMO_TO }}
         run: python build_memo.py --send
 
       - name: Commit the memo and refreshed data
         # Runs even when sending failed, so the memo is still archived and the
-        # refreshed snapshot is not thrown away.
-        if: always()
+        # refreshed snapshot is not thrown away. Skipped for form requests:
+        # those are one-off sends and should not each leave a commit.
+        if: always() && github.event_name != 'repository_dispatch'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
