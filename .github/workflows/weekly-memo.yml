@@ -42,6 +42,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install headless Chromium for the PDF
+        run: |
+          pip install --quiet playwright
+          playwright install --with-deps chromium
+
       - name: Refresh the snapshot
         run: python fetch_quotes.py
 

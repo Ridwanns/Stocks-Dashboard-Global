@@ -7,9 +7,13 @@ panel never did anything anyway: it had no submit handler.
 Writes memos/<date>.html either way, so there is an archive even when no
 mail credentials are configured.
 
+The memo goes out as an HTML email with the same memo attached as a PDF,
+rendered by headless Chromium so the attachment matches the web version.
+
 Usage:
-    py build_memo.py                          # build only
-    py build_memo.py --send                   # build and email
+    py build_memo.py                          # build the HTML only
+    py build_memo.py --pdf                    # also render the PDF
+    py build_memo.py --send                   # build, render, email
     py build_memo.py --send --to a@x.com,b@y.com   # to specific addresses
 
 Email needs three environment variables, supplied by GitHub Secrets:
@@ -165,6 +169,38 @@ For informational purposes only · not investment advice.
     return ''.join(parts)
 
 
+def render_pdf(html_path):
+    """Render the memo to PDF with headless Chromium, if it's installed.
+
+    Playwright is only present on the runner (the workflow installs it), so
+    locally this returns None and the mail goes out as HTML alone rather than
+    failing. Chromium is used rather than a Python PDF library because the
+    memo is styled HTML and this keeps the PDF identical to the web version.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print('  playwright not installed — sending without a PDF attachment')
+        return None
+
+    pdf_path = os.path.splitext(html_path)[0] + '.pdf'
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto('file://' + os.path.abspath(html_path).replace('\\', '/'))
+            page.pdf(path=pdf_path, format='A4', print_background=True,
+                     margin={'top': '14mm', 'bottom': '14mm',
+                             'left': '10mm', 'right': '10mm'})
+            browser.close()
+    except Exception as e:
+        print(f'  PDF render failed ({type(e).__name__}: {e}) — sending HTML only')
+        return None
+
+    print(f'  Rendered {pdf_path} ({os.path.getsize(pdf_path):,} bytes)')
+    return pdf_path
+
+
 def recipients():
     """--to wins, then MEMO_TO, then the sending account. Comma-separated."""
     raw = ''
@@ -176,7 +212,7 @@ def recipients():
     return [a.strip() for a in raw.split(',') if a.strip()]
 
 
-def send(html, subject):
+def send(html, subject, pdf_path=None):
     user = (os.environ.get('GMAIL_USER') or '').strip()
     # Google shows App Passwords as "abcd efgh ijkl mnop", and pasting that
     # verbatim gives 19 characters, which Gmail rejects with 535. They never
@@ -196,6 +232,11 @@ def send(html, subject):
     msg['To'] = ', '.join(to)
     msg.set_content('This memo is formatted in HTML. Open it in an HTML-capable client.')
     msg.add_alternative(html, subtype='html')
+
+    if pdf_path and os.path.exists(pdf_path):
+        with open(pdf_path, 'rb') as f:
+            msg.add_attachment(f.read(), maintype='application', subtype='pdf',
+                               filename=os.path.basename(pdf_path))
 
     # Gmail rejects a bad App Password with a bare 535, which surfaced as an
     # unhandled traceback and a red job with nothing actionable in it.
@@ -237,8 +278,10 @@ def main():
         f.write(html)
     print(f'Wrote {path} ({os.path.getsize(path):,} bytes)')
 
+    pdf = render_pdf(path) if '--pdf' in sys.argv or '--send' in sys.argv else None
+
     if '--send' in sys.argv:
-        ok = send(html, f'Chip Desk — weekly memo, {time.strftime("%d %b %Y", time.gmtime())}')
+        ok = send(html, f'Chip Desk — weekly memo, {time.strftime("%d %b %Y", time.gmtime())}', pdf)
         # Report the failure, but the memo file is already written and the
         # workflow still archives it.
         if not ok:
