@@ -55,6 +55,9 @@ jobs:
         run: python build_memo.py --send
 
       - name: Commit the memo and refreshed data
+        # Runs even when sending failed, so the memo is still archived and the
+        # refreshed snapshot is not thrown away.
+        if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

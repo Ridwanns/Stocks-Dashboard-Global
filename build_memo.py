@@ -194,9 +194,27 @@ def send(html, subject):
     msg.set_content('This memo is formatted in HTML. Open it in an HTML-capable client.')
     msg.add_alternative(html, subtype='html')
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context()) as s:
-        s.login(user, pw)
-        s.send_message(msg)
+    # Gmail rejects a bad App Password with a bare 535, which surfaced as an
+    # unhandled traceback and a red job with nothing actionable in it.
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context()) as s:
+            s.login(user, pw)
+            s.send_message(msg)
+    except smtplib.SMTPAuthenticationError as e:
+        masked = (user[:2] + '***@' + user.split('@')[-1]) if '@' in user else '***'
+        print('Gmail refused the login.')
+        print(f'  GMAIL_USER      {masked}')
+        print(f'  password length {len(pw)} characters '
+              f'(an App Password is exactly 16, no spaces)')
+        print(f'  server said     {e.smtp_code} {e.smtp_error.decode("utf-8", "replace")[:160]}')
+        print('Usual causes: spaces left in the App Password, the account password '
+              'used instead of an App Password, or GMAIL_USER not being the account '
+              'that created it.')
+        return False
+    except (smtplib.SMTPException, OSError) as e:
+        print(f'Could not send: {type(e).__name__}: {e}')
+        return False
+
     print(f'Sent to {", ".join(to)}')
     return True
 
@@ -217,7 +235,11 @@ def main():
     print(f'Wrote {path} ({os.path.getsize(path):,} bytes)')
 
     if '--send' in sys.argv:
-        send(html, f'Chip Desk — weekly memo, {time.strftime("%d %b %Y", time.gmtime())}')
+        ok = send(html, f'Chip Desk — weekly memo, {time.strftime("%d %b %Y", time.gmtime())}')
+        # Report the failure, but the memo file is already written and the
+        # workflow still archives it.
+        if not ok:
+            return 1
     return 0
 
 
