@@ -8,8 +8,9 @@ Writes memos/<date>.html either way, so there is an archive even when no
 mail credentials are configured.
 
 Usage:
-    py build_memo.py            # build only
-    py build_memo.py --send     # build and email
+    py build_memo.py                          # build only
+    py build_memo.py --send                   # build and email
+    py build_memo.py --send --to a@x.com,b@y.com   # to specific addresses
 
 Email needs three environment variables, supplied by GitHub Secrets:
     GMAIL_USER          the sending Gmail address
@@ -164,25 +165,39 @@ For informational purposes only · not investment advice.
     return ''.join(parts)
 
 
+def recipients():
+    """--to wins, then MEMO_TO, then the sending account. Comma-separated."""
+    raw = ''
+    if '--to' in sys.argv:
+        i = sys.argv.index('--to')
+        if i + 1 < len(sys.argv):
+            raw = sys.argv[i + 1]
+    raw = raw or os.environ.get('MEMO_TO') or os.environ.get('GMAIL_USER') or ''
+    return [a.strip() for a in raw.split(',') if a.strip()]
+
+
 def send(html, subject):
     user = os.environ.get('GMAIL_USER')
     pw = os.environ.get('GMAIL_APP_PASSWORD')
-    to = os.environ.get('MEMO_TO') or user
+    to = recipients()
     if not user or not pw:
         print('GMAIL_USER / GMAIL_APP_PASSWORD not set — built the file but sent nothing.')
+        return False
+    if not to:
+        print('No recipient — pass --to, or set MEMO_TO.')
         return False
 
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = user
-    msg['To'] = to
+    msg['To'] = ', '.join(to)
     msg.set_content('This memo is formatted in HTML. Open it in an HTML-capable client.')
     msg.add_alternative(html, subtype='html')
 
     with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context()) as s:
         s.login(user, pw)
         s.send_message(msg)
-    print(f'Sent to {to}')
+    print(f'Sent to {", ".join(to)}')
     return True
 
 

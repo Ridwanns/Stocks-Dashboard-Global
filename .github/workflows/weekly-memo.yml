@@ -19,6 +19,11 @@ on:
     # 15:00 UTC Sunday = 22:00 WIB, the slot the site already advertised.
     - cron: '0 15 * * 0'
   workflow_dispatch:
+    inputs:
+      recipient:
+        description: 'Send the memo to this address (blank = MEMO_TO / GMAIL_USER)'
+        required: false
+        type: string
 
 concurrency:
   group: weekly-memo
@@ -44,7 +49,9 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          MEMO_TO: ${{ secrets.MEMO_TO }}
+          # A recipient typed into the Run workflow box wins over the secret,
+          # so a memo can be sent to anyone without editing anything.
+          MEMO_TO: ${{ inputs.recipient || secrets.MEMO_TO }}
         run: python build_memo.py --send
 
       - name: Commit the memo and refreshed data
