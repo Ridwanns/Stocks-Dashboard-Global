@@ -24,3 +24,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Source filings — large PDFs kept locally, not committed
+Financial Statement and another/

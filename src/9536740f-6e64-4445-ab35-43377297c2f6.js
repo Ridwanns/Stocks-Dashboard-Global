@@ -382,11 +382,15 @@ const TICKERS = {
       petm: '89.0x', pfwd: '15.2x',
       ps: '20.4x', pb: '14.1x', evEbitda: '28.5x', peg: '0.42x',
     },
+    // Micron reorganised its business units in Q4 FY2025; the old
+    // Compute/Mobile/Storage/Embedded split is no longer reported, and the
+    // figures under it summed to $23.9B against $37.4B of revenue.
+    // Source: FY2025 10-K (fiscal year ended 2025-08-28).
     segments: [
-      { name: 'Compute & Networking', pct: 48.1, val: '11.5B' },
-      { name: 'Mobile',               pct: 21.6, val: '5.16B' },
-      { name: 'Storage',              pct: 17.0, val: '4.06B' },
-      { name: 'Embedded',             pct: 13.3, val: '3.18B' },
+      { name: 'CMBU · Cloud Memory',        pct: 36.2, val: '13.52B' },
+      { name: 'MCBU · Mobile & Client',     pct: 31.7, val: '11.86B' },
+      { name: 'CDBU · Core Data Center',    pct: 19.4, val: '7.23B'  },
+      { name: 'AEBU · Automotive & Embed.', pct: 12.7, val: '4.75B'  },
     ],
     quarterly: [
       { q: 'Q1·25', rev: 5.8, ni: 0.79 },
@@ -563,11 +567,15 @@ const TICKERS = {
       petm: '39.9x', pfwd: '24.4x',
       ps: '17.9x', pb: '12.5x', evEbitda: '16.2x', peg: '0.71x',
     },
+    // Revenue by platform, 2025 Annual Report: 58% HPC, 29% smartphone,
+    // 5% IoT, 5% automotive, 1% DCE, the rest other. Dollar values are the
+    // percentages applied to FY2025 revenue of $120.7B (converted from TWD).
     segments: [
-      { name: 'HPC (AI accelerators + CPU)', pct: 51.0, val: '65.4B' },
-      { name: 'Smartphone',                   pct: 35.0, val: '44.9B' },
-      { name: 'IoT',                          pct: 8.0,  val: '10.3B' },
-      { name: 'Automotive + DCE',             pct: 6.0,  val: '7.7B'  },
+      { name: 'HPC (AI accelerators + CPU)', pct: 58.0, val: '70.0B' },
+      { name: 'Smartphone',                  pct: 29.0, val: '35.0B' },
+      { name: 'IoT',                         pct: 5.0,  val: '6.0B'  },
+      { name: 'Automotive',                  pct: 5.0,  val: '6.0B'  },
+      { name: 'DCE + other',                 pct: 3.0,  val: '3.6B'  },
     ],
     quarterly: [
       { q: 'Q1·25', rev: 21.4, ni: 8.0 },
@@ -744,11 +752,12 @@ const TICKERS = {
       petm: '93.9x', pfwd: '69.7x',
       ps: '30.6x', pb: '17.6x', evEbitda: '78.3x', peg: '2.69x',
     },
+    // Marvell reports two end markets, not four: enterprise networking,
+    // carrier infrastructure and consumer now sit inside "communications and
+    // other". Source: FY2026 10-K (year ended 2026-01-31).
     segments: [
-      { name: 'Data Center',           pct: 74.0, val: '6.07B' },
-      { name: 'Enterprise Networking', pct: 9.0,  val: '0.74B' },
-      { name: 'Carrier Infrastructure',pct: 5.5,  val: '0.45B' },
-      { name: 'Consumer & Other',      pct: 11.5, val: '0.94B' },
+      { name: 'Data center',              pct: 74.0, val: '6.10B' },
+      { name: 'Communications and other', pct: 26.0, val: '2.09B' },
     ],
     quarterly: [
       { q: 'Q3·25', rev: 1.52, ni: 0 },
