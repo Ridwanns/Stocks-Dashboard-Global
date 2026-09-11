@@ -2506,13 +2506,33 @@ function TabFinancials({t}){
   const view=dd&&dd[mode]||{};
   const periods=view.periods||(dd&&dd.annual.periods)||[];
 
+  // Rank each multiple against the other names in the basket. These gauges
+  // used to carry fixed percentiles — every ticker showed "85th pct · rich"
+  // for P/E (TTM) and "95th pct · very rich" for P/B no matter what it
+  // actually traded at, so Micron at 15x forward read the same as Marvell at
+  // 70x. Ranking against peers is something the data can actually support;
+  // a percentile against a name's own history would need a history we don't
+  // carry, so the label says "of 5" rather than implying one.
+  const peerRank=(key)=>{
+    const num=v=>{ const f=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,'')); return isFinite(f)?f:null; };
+    const mine=num(t.fundamentals[key]);
+    const peers=ORDER.map(s=>num((TICKERS[s]&&TICKERS[s].fundamentals||{})[key])).filter(v=>v!==null);
+    if(mine===null||peers.length<2) return {percentile:50, pctLabel:'no peer data', color:GT.textDim};
+    const sorted=[...peers].sort((a,b)=>a-b);          // cheapest first
+    const rank=sorted.indexOf(mine)+1;
+    const pctl=Math.round(((rank-1)/(sorted.length-1))*100);
+    const band=pctl<=33?'cheapest of the basket':pctl<=66?'mid-basket':'richest of the basket';
+    const color=pctl<=33?GT.green:pctl<=66?GT.amber:GT.red;
+    return {percentile:pctl, pctLabel:`${rank} of ${sorted.length} · ${band}`, color};
+  };
+
   const valCards=[
-    {key:'pfwd', label:'P/E (NTM)', value:t.fundamentals.pfwd,   percentile:50, pctLabel:'50th pct · fair',  color:palette.a},
-    {key:'petm', label:'P/E (TTM)', value:t.fundamentals.petm,   percentile:85, pctLabel:'85th pct · rich',   color:GT.amber},
-    {key:'ps',   label:'P/S',       value:t.fundamentals.ps,     percentile:70, pctLabel:'70th pct · stretched',color:GT.amber},
-    {key:'pb',   label:'P/B',       value:t.fundamentals.pb,     percentile:95, pctLabel:'95th pct · very rich',color:GT.red},
-    {key:'ev',   label:'EV/EBITDA', value:t.fundamentals.evEbitda,percentile:60,pctLabel:'60th pct · moderate',color:GT.amber},
-    {key:'peg',  label:'PEG',       value:t.fundamentals.peg,    percentile:35, pctLabel:'Fair · <1x ideal',   color:GT.green},
+    {key:'pfwd', label:'P/E (NTM)', value:t.fundamentals.pfwd,     ...peerRank('pfwd')},
+    {key:'petm', label:'P/E (TTM)', value:t.fundamentals.petm,     ...peerRank('petm')},
+    {key:'ps',   label:'P/S',       value:t.fundamentals.ps,       ...peerRank('ps')},
+    {key:'pb',   label:'P/B',       value:t.fundamentals.pb,       ...peerRank('pb')},
+    {key:'ev',   label:'EV/EBITDA', value:t.fundamentals.evEbitda, ...peerRank('evEbitda')},
+    {key:'peg',  label:'PEG',       value:t.fundamentals.peg,      ...peerRank('peg')},
   ];
 
   const activeCard=valCards.find(v=>v.key===activeVal)||valCards[0];
